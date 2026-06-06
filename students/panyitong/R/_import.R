@@ -16,7 +16,7 @@ merged_full <- demo %>%
 
 # 挑选需要的变量（包括权重）
 merged <- merged_full %>%
-  select(SEQN, RIDAGEYR, RIAGENDR, RIDRETH3,BMXBMI,BPQ020,SMQ020,WTMEC2YR, SDMVPSU, SDMVSTRA)   # ← 加上权重和抽样变量
+  select(SEQN, RIDAGEYR, RIAGENDR, RIDRETH3,DMDEDUC2, INDFMPIR, BMXBMI, BPQ020, SMQ020, WTMEC2YR, SDMVPSU, SDMVSTRA)  
 
 # 保存
 saveRDS(merged, "merged_raw.rds")
@@ -25,8 +25,8 @@ saveRDS(merged, "merged_raw.rds")
 dim(merged)
 names(merged)
 
-# 只看你需要的变量的缺失情况
-need_vars <- c("SEQN", "RIDAGEYR", "RIAGENDR", "RIDRETH3", "BMXBMI", "BPQ020", "SMQ020")
+# 所有核心变量的缺失情况
+need_vars <- c("SEQN", "RIDAGEYR", "RIAGENDR", "RIDRETH3", "BMXBMI", "BPQ020", "SMQ020",  "DMDEDUC2", "INDFMPIR")  
 
 colSums(is.na(merged[, need_vars]))
 
@@ -36,7 +36,7 @@ range(merged$RIDAGEYR, na.rm = FALSE)
 # BMI 范围
 range(merged$BMXBMI, na.rm = TRUE)
 
-# 基于原始数据 merged 计算 BMI 的 IQR 异常值边界
+# 基于原始数据 merged 检查BMI 是否存在异常值
 
 # 计算四分位数
 Q1 <- quantile(merged$BMXBMI, 0.25, na.rm = TRUE)
@@ -78,6 +78,30 @@ merged_full %>%
 # 画箱线图
 boxplot(merged$BMXBMI, main = "原始数据 BMI 分布箱线图", ylab = "BMI", col = "lightblue")
 
+# PIR 异常值检查
+
+# 查看 PIR 基本情况
+cat(" PIR 基本情况 \n")
+summary(merged$INDFMPIR)
+
+# 查看 PIR = 5 的有多少人（这是截断，不是异常）
+cat("\n PIR = 5（高收入截断）的人数 \n")
+sum(merged$INDFMPIR == 5, na.rm = TRUE)
+
+# 查看 PIR < 0 是否存在
+cat("\n PIR < 0 的人数 \n")
+sum(merged$INDFMPIR < 0, na.rm = TRUE)
+
+# 查看 PIR 缺失情况
+cat("\n PIR 缺失情况 \n")
+sum(is.na(merged$INDFMPIR))
+
+# 箱线图查看 PIR 分布
+boxplot(merged$INDFMPIR,  main = "原始数据 PIR 分布箱线图", ylab = "PIR", col = "lightgreen")
+
+# 直方图查看分布形态
+hist(merged$INDFMPIR, main = "PIR 分布直方图", xlab = "PIR", col = "lightblue", breaks = 20)
+
 #BMI 分布概况
 summary(merged$BMXBMI)
 sd(merged$BMXBMI, na.rm = TRUE)
@@ -86,8 +110,14 @@ sd(merged$BMXBMI, na.rm = TRUE)
 summary(merged$RIDAGEYR)
 sd(merged$RIDAGEYR, na.rm = TRUE)
 
+#PIR分布概况
+summary(merged$INDFMPIR)
+sd(merged$INDFMPIR, na.rm = TRUE)
+
 #分类变量分布情况
 table(merged$SMQ020, useNA = "ifany")
 table(merged$BPQ020, useNA = "ifany")
 table(merged$RIAGENDR, useNA = "ifany")
 table(merged$RIDRETH3, useNA = "ifany")
+table(merged$DMDEDUC2, useNA = "ifany")
+
