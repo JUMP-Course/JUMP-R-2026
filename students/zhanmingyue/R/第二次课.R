@@ -1,0 +1,36 @@
+library(tidyverse)
+dat<-read.csv("D:/shuju/diabetes.csv")
+dat<-select(dat,glyhb,waist,age,gender,chol)
+dim(dat)
+dat<-drop_na(dat)
+dim(dat)
+str(dat)
+dat$gender<-as.factor(dat$gender)
+dat$diabetes<-ifelse(dat$glyhb>=6.5,1,0)
+summary(dat)
+table(dat$diabetes)
+table1<-dat%>%
+  group_by(diabetes)%>%
+  summarise(
+    N=n(),
+    waist_mean=mean(waist),
+    waist_sd=sd(waist),
+    age_mean=mean(age),
+    age_sd=sd(age),
+    chol_mean=mean(chol),
+    chol_sd=sd(chol)
+    )
+print(table1)
+hist(dat$waist,
+     main="腰围分布直方图",
+     xlab="腰围(cm)",
+     ylab="频数",
+     col="skyblue",
+     breaks=20)
+boxplot(waist~diabetes,data=dat,
+          main="腰围与糖尿病状态的箱线图",
+          xlab="糖尿病（0=否,1=是）",
+          ylab="腰围（cm）",
+          col=c("red","green"),
+          name=c("非糖尿病","糖尿病"))
+
