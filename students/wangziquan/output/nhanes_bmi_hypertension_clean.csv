@@ -1,0 +1,1 @@
+SEQN,age,sex,bmi,BPXSY1,BPXSY2,BPXSY3,BPXDI1,BPXDI2,BPXDI3,BPQ020,BPQ040A,SMQ020,mean_sbp,mean_dbp,bmi_group,hypertension,sex_clean,bmi_group_clean,smoking_clean,smoking_model,bpq020_clean,bpq040a_clean,antihypertensive_med,measured_hbp_140,measured_hbp_130,hypertension_main,hypertension_extended,hypertension_sens_130,include_analysis,analysis_status,exclusion_reason
