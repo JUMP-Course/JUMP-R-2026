@@ -1,6 +1,6 @@
 variable,n_missing,pct_missing
 age,0,0
-sex_clean,5856,100
+sex_clean,0,0
 bmi,422,7.21
 bmi_group_clean,422,7.21
 mean_sbp,609,10.4
