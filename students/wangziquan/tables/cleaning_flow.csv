@@ -1,8 +1,0 @@
-step,n,excluded_from_previous_step
-Initial dataset,5856,NA
-Adults aged >=18 years,5856,0
-Exclude missing sex,5856,0
-Exclude missing BMI,5434,422
-Exclude missing BMI group,5434,0
-Exclude missing hypertension status,1209,4225
-Final analytic sample,1209,0
