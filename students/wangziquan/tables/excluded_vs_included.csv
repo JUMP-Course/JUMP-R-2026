@@ -1,0 +1,3 @@
+analysis_status,n,age_mean,age_sd,female_n,female_pct,bmi_mean,bmi_sd,ever_smoker_n,ever_smoker_pct,missing_bmi_n,missing_hypertension_n
+Excluded,680,50.95,20.61,352,51.76,30.12,8.61,0,0,422,609
+Included,5176,49.75,18.52,2664,51.47,29.67,7.38,0,0,0,0
