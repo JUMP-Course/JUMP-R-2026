@@ -102,3 +102,94 @@ p3 <- ggplot(df_raw, aes(x = 总阳性标本数)) +
 print(p1)
 print(p2)
 print(p3)
+cat("\n========== 清洗操作说明 ==========\n")
+cat("清洗策略：删除关键变量（南方ILI%、北方ILI%）存在缺失的行\n")
+cat("原因：ILI%是核心分析变量，缺失的2行无法用于趋势和季节分析\n")
+cat("清洗前行数:", nrow(df_raw), "\n")
+
+df_clean <- df_raw %>%
+  filter(!is.na(`南方ILI(%)`), !is.na(`北方ILI(%)`))
+
+cat("清洗后行数:", nrow(df_clean), "\n")
+cat("删除行数:", nrow(df_raw) - nrow(df_clean), "行（2017年第41-42周）\n")
+
+cat("\n========== 样本量变化对比 ==========\n")
+comparison <- data.frame(
+  指标 = c("总行数", "完整无缺失行数", "总缺失值个数", "整体缺失率"),
+  清洗前 = c(
+    nrow(df_raw),
+    sum(complete.cases(df_raw)),
+    sum(is.na(df_raw)),
+    round(mean(is.na(df_raw)), 4)
+  ),
+  清洗后 = c(
+    nrow(df_clean),
+    sum(complete.cases(df_clean)),
+    sum(is.na(df_clean)),
+    round(mean(is.na(df_clean)), 4)
+  )
+)
+print(comparison)
+
+cat("\n========== 变化总结 ==========\n")
+cat(sprintf("样本量从 %d 行减少到 %d 行，删除了 %.1f%% 的数据\n", 
+            nrow(df_raw), nrow(df_clean), 
+            100 * (nrow(df_raw) - nrow(df_clean)) / nrow(df_raw)))
+cat("删除比例极低（<0.4%），对整体分析影响可以忽略。\n")
+
+cat("\n========== 原研究问题回顾 ==========\n")
+cat("假设研究问题：描述2015-2024年中国流感流行特征\n")
+cat("具体包括：\n")
+cat("  - 流感季节性规律\n")
+cat("  - 南北方ILI%差异\n")
+cat("  - 甲流/乙流及亚型变化趋势\n")
+
+cat("\n========== 支持性评估 ==========\n")
+assessment <- data.frame(
+  评估维度 = c(
+    "样本量充分性",
+    "时间跨度", 
+    "变量完整性",
+    "数据质量",
+    "分析可行性"
+  ),
+  评估结果 = c("✅ 支持", "✅ 支持", "✅ 支持", "✅ 支持", "✅ 支持"),
+  说明 = c(
+    sprintf("清洗后剩余%d条周度记录，足够识别季节性规律", nrow(df_clean)),
+    "覆盖2015-2024整10年，每年52周，周期完整",
+    "包含南北ILI%、阳性数、甲/乙流占比及4种亚型分型",
+    "缺失率<0.4%，异常值为真实高峰期，无需删除",
+    "可做时间趋势、季节分解、南北方对比、亚型变迁分析"
+  )
+)
+print(assessment)
+# ========== 变量筛选与因子变量处理 ==========
+core_columns <- c("年份", "周次", "南方ILI(%)", "北方ILI(%)", "总检测标本数",
+                  "总阳性标本数", "甲流占阳性比(%)", "乙流占阳性比(%)",
+                  "H3N2阳性数", "甲H1N1阳性数", "B(Victoria)阳性数", "B(Yamagata)阳性数")
+df_clean_core <- df_clean %>% select(all_of(core_columns))
+df_clean_core <- df_clean_core %>%
+  mutate(
+    年份因子 = as.factor(年份),
+    周次 = as.integer(周次)
+  )
+
+df_clean_core <- df_clean_core %>%
+  mutate(日期 = as.Date(paste(年份, 1, 1, sep = "-")) + (周次 - 1) * 7)
+
+df_long <- df_clean_core %>%
+  select(年份, 周次, `南方ILI(%)`, `北方ILI(%)`, 总阳性标本数, 
+         `甲流占阳性比(%)`, `乙流占阳性比(%)`) %>%
+  pivot_longer(cols = c(`南方ILI(%)`, `北方ILI(%)`),
+               names_to = "区域",
+               values_to = "ILI_percent") %>%
+  mutate(区域 = str_replace(区域, "\\(%\\)", ""))  # 去掉括号，保留“南方ILI”“北方ILI”
+
+# ========== 纳入排除标准与变量定义 ==========
+cat("\n========== 分析对象确定 ==========\n")
+cat("纳入标准：2015年第1周至2024年第52周的全部周次记录\n")
+cat("排除标准：南方ILI(%) 或 北方ILI(%) 缺失的周次（共2周）\n")
+cat("最终分析样本量：", nrow(df_clean_core), "周（", nrow(df_clean_core)/52, "年）\n")
+cat("暴露变量：时间（年份、周次）\n")
+cat("协变量（分组变量）：区域（南方/北方）、年份\n")
+cat("结局变量：ILI(%)、阳性标本数、甲流占比、乙流占比及各亚型阳性数\n")

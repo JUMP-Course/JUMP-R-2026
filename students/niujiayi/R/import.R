@@ -37,4 +37,3 @@ table(female$ALQ121)
 
 
 
-
