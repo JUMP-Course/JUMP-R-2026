@@ -81,7 +81,7 @@ data_final <- data_clean %>%
 n_after <- nrow(data_final)
 
 cat("清洗前样本量（年龄≥20岁且含缺失）:", n_before, "\n")
-cat("清洗后样本量（完整病例）:", n_after, "\n")
+cat("清洗后样本量（无缺失）:", n_after, "\n")
 cat("删除的样本量:", n_before - n_after, "\n")
 
 # 最终数据分布
