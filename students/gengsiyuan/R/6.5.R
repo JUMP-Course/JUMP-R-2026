@@ -60,7 +60,8 @@ names(urine_cadmium_0910)
 names(urine_cadmium_1112)
 
 # 定义每个模块必须保留的变量
-demo_required <- c("SEQN", "WTMEC2YR", "RIDAGEYR", "RIAGENDR", "RIDRETH1", "INDFMPIR", "DMDEDUC2")
+demo_required <- c("SEQN", "WTMEC2YR", "RIDAGEYR", "RIAGENDR", "RIDRETH1", 
+                   "INDFMPIR", "DMDEDUC2", "SDMVSTRA", "SDMVPSU")
 bmx_required <- c("SEQN", "BMXBMI")
 smoke_required <- c("SEQN", "SMQ020")
 bpq_required <- c("SEQN", "BPQ020")
