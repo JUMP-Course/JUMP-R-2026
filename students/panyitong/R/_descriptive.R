@@ -55,7 +55,7 @@ ft <- flextable(table_wide) %>%
     `1` = "高血压组") %>%
   autofit()
 
-# 预览+导出Word
+# 预览+导出
 print(ft)
 save_as_docx(ft, path = "~/GitHub/JUMP-R-2026/students/panyitong/tables/高血压基线特征完整三线表.docx")
 
