@@ -28,7 +28,7 @@ dim(merged)
 names(merged)
 
 # 所有核心变量的缺失情况
-need_vars <- c("SEQN", "RIDAGEYR", "RIAGENDR", "RIDRETH3", "BMXBMI", "BPQ020","BPQ050A","BPXSY1","BPXSY2", "BPXSY3","BPXDI1","BPXDI2","BPXDI3","SMQ020","SMQ040" , "DMDEDUC2", "INDFMPIR")  
+need_vars <- c("SEQN", "RIDAGEYR", "RIAGENDR", "RIDRETH3", "BMXBMI", "BPQ020","BPXSY1","BPXSY2", "BPXSY3","BPXDI1","BPXDI2","BPXDI3","SMQ020","SMQ040" , "DMDEDUC2", "INDFMPIR")  
 
 colSums(is.na(merged[, need_vars]))
 
