@@ -60,7 +60,8 @@ names(urine_cadmium_0910)
 names(urine_cadmium_1112)
 
 # 定义每个模块必须保留的变量
-demo_required <- c("SEQN", "WTMEC2YR", "RIDAGEYR", "RIAGENDR", "RIDRETH1", "INDFMPIR", "DMDEDUC2")
+demo_required <- c("SEQN", "WTMEC2YR", "RIDAGEYR", "RIAGENDR", "RIDRETH1", 
+                   "INDFMPIR", "DMDEDUC2", "SDMVSTRA", "SDMVPSU")
 bmx_required <- c("SEQN", "BMXBMI")
 smoke_required <- c("SEQN", "SMQ020")
 bpq_required <- c("SEQN", "BPQ020")
@@ -190,6 +191,8 @@ p2 <- ggplot(data_clean, aes(x = URXUCD)) +
   labs(x = "尿镉浓度 (μg/L, log10 刻度)", y = "频数", 
        title = "尿镉分布 (对数变换)") +
   theme_bw()
+print(p1)
+print(p2)
 
 ggsave("缺失率图.png", p1, width = 8, height = 5)
 ggsave("尿镉分布直方图.png", p2, width = 6, height = 4)

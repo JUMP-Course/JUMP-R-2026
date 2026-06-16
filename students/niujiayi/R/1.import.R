@@ -25,7 +25,7 @@ female <- female %>%
     TRUE ~ 0
   ))
 
-write.csv(female,"D:/JUMP-R-2026/students/niujiayi/doc/女性饮酒乳腺癌_整理后数据.csv",row.names = F)
+write.csv(female,"D:/JUMP-R-2026/students/niujiayi/doc/女性饮酒乳腺癌数据.csv",row.names = F)
 
 dim(female)
 table(female$breast_cancer)
