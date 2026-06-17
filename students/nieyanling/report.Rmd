@@ -1,0 +1,183 @@
+---
+title: "膳食添加糖摄入与成人血脂异常的关联分析"
+output: html_document
+date: "2026-06-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. 研究背景
+
+### 1.1 心血管疾病的流行病学负担
+
+心血管疾病（CVD）是全球范围内导致死亡和残疾的主要原因之一。根据世界卫生组织（WHO）数据，2019年全球约有1790万人死于心血管疾病，占总死亡人数的32%。其中，缺血性心脏病和脑卒中是最主要的死亡原因。中国心血管疾病患病率持续上升，现患人数约3.3亿，心血管疾病已成为我国居民的首位死因，占城乡居民总死亡原因的40%以上。
+
+### 1.2 血脂异常是心血管疾病的重要危险因素
+
+血脂异常是心血管疾病的关键可调控危险因素。大量流行病学研究和随机对照试验证实，血清总胆固醇（TC）、甘油三酯（TG）、低密度脂蛋白胆固醇（LDL-C）水平升高，以及高密度脂蛋白胆固醇（HDL-C）水平降低，均与动脉粥样硬化性心血管疾病（ASCVD）风险增加密切相关。《中国心血管病一级预防指南》指出，控制血脂异常可显著降低心血管事件的发生率和死亡率。
+
+### 1.3 膳食添加糖摄入与血脂异常的关联
+
+近年来，膳食添加糖对血脂代谢的影响受到广泛关注。添加糖是指在食品加工或制备过程中人为添加的糖类及糖浆，包括蔗糖、果糖、葡萄糖、高果糖玉米糖浆等。与天然存在于水果、蔬菜中的内源性糖不同，添加糖不含微量营养素和膳食纤维，被称为"空热量"来源。
+
+多项研究发现，高添加糖摄入可能通过以下机制影响血脂代谢：
+- 增加肝脏甘油三酯合成
+- 降低脂蛋白脂酶活性
+- 诱导胰岛素抵抗
+- 促进小而密LDL颗粒形成
+
+### 1.4 本研究目的
+
+基于上述研究背景，本研究利用2017-2018年美国国家健康与营养调查（NHANES）数据，旨在：
+
+1. 描述不同添加糖摄入水平下成年人的血脂异常患病情况
+2. 分析膳食添加糖摄入与血脂异常的关联
+3. 探讨添加糖摄入与血脂的剂量-反应关系
+4. 为制定针对性的膳食指南和心血管疾病防控策略提供科学依据
+## 2. 数据与方法
+
+### 2.1 数据来源
+
+本研究使用美国国家健康与营养调查（National Health and Nutrition Examination Survey, NHANES）2017-2018 年数据。NHANES是一项连续、分层的全国代表性横断面调查，采用复杂多阶段概率抽样设计，每两年为一个周期。所有数据均已公开，可在官方网站下载。
+### 2.2 研究对象
+本研究纳入标准如下：
+- 年龄 ≥18 岁的成年人
+- 完成膳食调查（DR1TOT_J.XPT）
+- 完成血脂检测（TCHOL_J.XPT、TRIGLY_J.XPT、HDL_J.XPT）
+排除标准如下：
+- 孕妇（RIDEXPRG = 1）
+- 关键变量（添加糖摄入、血脂指标）缺失者
+### 2.3 变量定义
+
+- **暴露变量**：添加糖摄入量（三分位数分组：低/中/高）
+- **结局变量**：血脂异常（TC≥240mg/dL, TG≥200mg/dL, HDL<40/50mg/dL, LDL≥160mg/dL）
+- **协变量**：年龄、性别、种族、教育、收入、BMI、总能量摄入
+
+### 2.4 数据准备
+
+```{r load_data, echo=TRUE...}
+# 加载包
+library(haven)
+library(dplyr)
+library(tableone)
+setwd("D:/NHANES-2017-2018")
+
+# ============================================================
+# 1. 读取并合并原始数据
+# ============================================================
+
+# 基础数据
+demo   <- read_xpt("DEMO_J.XPT")
+bmx    <- read_xpt("BMX_J.XPT")
+dr1tot <- read_xpt("DR1TOT_J.XPT")
+
+# 读取血脂
+tc_dat    <- read_xpt("TCHOL_J.XPT")   # LBXTC总胆固醇
+tgldl_dat <- read_xpt("TRIGLY_J.XPT")  # LBXTR甘油三酯、LBDLDL低密度
+hdl_dat   <- read_xpt("HDL_J.XPT")     # LBDHDD高密度
+
+# 合并四项血脂
+lipid <- tc_dat %>% select(SEQN, LBXTC) %>%
+  inner_join(tgldl_dat %>% select(SEQN, LBXTR, LBDLDL), by = "SEQN") %>%
+  inner_join(hdl_dat %>% select(SEQN, LBDHDD), by = "SEQN") %>%
+  rename(LBXHD = LBDHDD)
+
+# 全天添加糖三分组：低/中/高
+sugar_data <- dr1tot[,c("SEQN","DR1TSUGR","DR1TKCAL")]
+
+cut_q <- quantile(sugar_data$DR1TSUGR, probs = c(0,1/3,2/3,1), na.rm=TRUE)
+
+sugar_data$exposure_3 <- cut(sugar_data$DR1TSUGR,
+                             breaks = cut_q,
+                             labels = c("低添加糖","中添加糖","高添加糖"),
+                             include.lowest = TRUE)
+
+sugar_data$exposure_3 <- factor(sugar_data$exposure_3,
+                                levels=c("低添加糖","中添加糖","高添加糖"))
+
+# 数据合并
+df_all <- inner_join(demo,bmx,by="SEQN") %>% inner_join(sugar_data,by="SEQN")
+df <- inner_join(df_all,lipid,by="SEQN")
+
+# ============================================================
+# 2. 筛选变量和样本
+# ============================================================
+
+# 关键变量
+keep_var <- c("SEQN","exposure_3","RIDAGEYR","RIAGENDR","RIDRETH1","DMDEDUC2","INDFMPIR",
+              "BMXBMI","DR1TKCAL","DR1TSUGR","LBXTC","LBXTR","LBXHD","LBDLDL")
+
+# 筛选成年人
+df_adult <- subset(df, RIDAGEYR >= 18)
+
+cat("1. 成年原始样本量：", nrow(df_adult), "\n")
+
+# 筛选变量
+df_sel <- df_adult[, keep_var]
+cat("2. 筛选变量后样本量：", nrow(df_sel), "\n")
+
+# ============================================================
+# 3. 缺失值处理
+# ============================================================
+
+# 剔除核心变量缺失（暴露+血脂）
+key_vars <- c("exposure_3", "LBXTC", "LBXTR", "LBXHD", "LBDLDL")
+df_clean <- df_sel[complete.cases(df_sel[, key_vars]), ]
+cat("\n3. 剔除核心变量缺失后样本量：", nrow(df_clean), "\n")
+
+# 连续型协变量 BMXBMI、INDFMPIR：中位数插补
+bmi_med <- median(df_clean$BMXBMI, na.rm = TRUE)
+df_clean$BMXBMI[is.na(df_clean$BMXBMI)] <- bmi_med
+
+indf_med <- median(df_clean$INDFMPIR, na.rm = TRUE)
+df_clean$INDFMPIR[is.na(df_clean$INDFMPIR)] <- indf_med
+
+# 分类变量 DMDEDUC2：众数插补
+get_mode <- function(x){
+  tbl <- table(x)
+  mode_str <- names(tbl)[which.max(tbl)]
+  if(is.numeric(x)){
+    return(as.numeric(mode_str))
+  }else{
+    return(mode_str)
+  }
+}
+df_clean$DMDEDUC2[is.na(df_clean$DMDEDUC2)] <- get_mode(df_clean$DMDEDUC2)
+
+# ============================================================
+# 4. 异常值处理（缩尾法）
+# ============================================================
+
+# 计算总能量摄入 1% 和 99% 分位数
+q01 <- quantile(df_clean$DR1TKCAL, 0.01, na.rm = TRUE)
+q99 <- quantile(df_clean$DR1TKCAL, 0.99, na.rm = TRUE)
+
+# 缩尾处理
+df_clean$DR1TKCAL_winsor <- df_clean$DR1TKCAL
+df_clean$DR1TKCAL_winsor[df_clean$DR1TKCAL < q01] <- q01
+df_clean$DR1TKCAL_winsor[df_clean$DR1TKCAL > q99] <- q99
+
+cat("\n4. 插补+缩尾后样本量：", nrow(df_clean), "\n")
+
+# ============================================================
+# 5. 生成最终分析数据集 df_final
+# ============================================================
+
+df_final <- df_clean %>%
+  mutate(
+    high_tc  = ifelse(LBXTC >= 240, 1, 0),
+    high_tg  = ifelse(LBXTR >= 200, 1, 0),
+    low_hdl  = ifelse((RIAGENDR == 1 & LBXHD < 40) | (RIAGENDR == 2 & LBXHD < 50), 1, 0),
+    high_ldl = ifelse(LBDLDL >= 160, 1, 0)
+  )
+
+cat("5. 最终分析样本量：", nrow(df_final), "\n")
+
+# ============================================================
+# 6. 保存清洗后的数据
+# ============================================================
+
+saveRDS(df_final, "df_cleaned.rds")
+cat("\n数据清洗完成！已保存到 df_cleaned.rds\n")
