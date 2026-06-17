@@ -1,0 +1,5 @@
+bmi_group_clean,n,age_mean,age_sd,age_median,age_q1,age_q3,bmi_mean,bmi_sd,bmi_median,bmi_q1,bmi_q3,female_n,female_pct,ever_smoker_n,ever_smoker_pct,hypertension_n,hypertension_pct
+Normal,1319,46.74,20.26,46,28,63.5,22.35,1.75,22.6,21,23.9,709,53.75,0,0,245,18.57
+Underweight,92,39.89,19.65,34,22,56.5,17.29,0.94,17.5,16.7,18.1,53,57.61,0,0,17,18.48
+Overweight,1633,52.35,17.82,54,38,66,27.39,1.42,27.4,26.2,28.6,753,46.11,0,0,397,24.31
+Obesity,2132,50.04,17.44,51,35,64,36.48,6.2,34.7,32,38.92,1149,53.89,0,0,550,25.8
