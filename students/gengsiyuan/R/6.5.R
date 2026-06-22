@@ -60,7 +60,8 @@ names(urine_cadmium_0910)
 names(urine_cadmium_1112)
 
 # 定义每个模块必须保留的变量
-demo_required <- c("SEQN", "WTMEC2YR", "RIDAGEYR", "RIAGENDR", "RIDRETH1", "INDFMPIR", "DMDEDUC2")
+demo_required <- c("SEQN", "WTMEC2YR", "RIDAGEYR", "RIAGENDR", "RIDRETH1", 
+                   "INDFMPIR", "DMDEDUC2", "SDMVSTRA", "SDMVPSU")
 bmx_required <- c("SEQN", "BMXBMI")
 smoke_required <- c("SEQN", "SMQ020")
 bpq_required <- c("SEQN", "BPQ020")
@@ -96,32 +97,26 @@ thyroid_all <- bind_rows(thyroid_0708_sel, thyroid_0910_sel, thyroid_1112_sel)
 cadmium_all <- bind_rows(cadmium_0708_sel, cadmium_0910_sel, cadmium_1112_sel)
 
 # DEMO 检查 
-cat("========== DEMO ==========\n")
 cat("样本数：", nrow(demo_all), "\n")
 cat("重复ID：", demo_all %>% count(SEQN) %>% filter(n>1) %>% nrow(), "\n")
 cat("变量名："); print(names(demo_all))
 # BMX 检查
-cat("\n========== BMX ==========\n")
 cat("样本数：", nrow(bmx_all), "\n")
 cat("重复ID：", bmx_all %>% count(SEQN) %>% filter(n>1) %>% nrow(), "\n")
 cat("变量名："); print(names(bmx_all))
 #SMOKE 检查
-cat("\n========== SMOKE ==========\n")
 cat("样本数：", nrow(smoke_all), "\n")
 cat("重复ID：", smoke_all %>% count(SEQN) %>% filter(n>1) %>% nrow(), "\n")
 cat("变量名："); print(names(smoke_all))
 # BPQ 检查
-cat("\n========== BPQ ==========\n")
 cat("样本数：", nrow(bpq_all), "\n")
 cat("重复ID：", bpq_all %>% count(SEQN) %>% filter(n>1) %>% nrow(), "\n")
 cat("变量名："); print(names(bpq_all))
 # THYROID 检查
-cat("\n========== THYROID ==========\n")
 cat("样本数：", nrow(thyroid_all), "\n")
 cat("重复ID：", thyroid_all %>% count(SEQN) %>% filter(n>1) %>% nrow(), "\n")
 cat("变量名："); print(names(thyroid_all))
 # URINE CADMIUM 检查 
-cat("\n========== CADMIUM ==========\n")
 cat("样本数：", nrow(cadmium_all), "\n")
 cat("重复ID：", cadmium_all %>% count(SEQN) %>% filter(n>1) %>% nrow(), "\n")
 cat("变量名："); print(names(cadmium_all))
@@ -137,7 +132,7 @@ data_merged <- cadmium_all %>%
 # 检查总样本量
 cat("cadmium_all 样本量:", nrow(cadmium_all), "\n")
 cat("data_merged 样本量:", nrow(data_merged), "\n")
-# 检查 SEQN 是否唯一（合并后不应有重复）
+# 检查 SEQN 是否唯一
 dup_merged <- data_merged %>% count(SEQN) %>% filter(n > 1)
 cat("合并后重复 SEQN 数量:", nrow(dup_merged), "\n")
 # 查看各来源表成功匹配的比例
@@ -167,11 +162,10 @@ cont_vars <- c("URXUCD", "LBXTPO", "LBXATG", "RIDAGEYR", "BMXBMI", "INDFMPIR")
 # 特殊编码转NA
 data_clean <- data_clean %>%
   mutate(across(where(is.numeric), ~ na_if(na_if(na_if(., 777), 888), 999)))
-#关键变量缺失率（竖表+2位小数）
+#关键变量缺失率
 missing_pct <- data_clean %>%
   summarise(across(all_of(key_vars), ~ round(mean(is.na(.)) * 100, 2))) %>%
   pivot_longer(cols = everything(), names_to = "变量", values_to = "缺失率(%)")
-cat("===== 关键变量缺失率 =====\n")
 print(missing_pct)
 # 连续变量异常值（IQR法+占比）
 for (var in cont_vars) {
@@ -197,6 +191,8 @@ p2 <- ggplot(data_clean, aes(x = URXUCD)) +
   labs(x = "尿镉浓度 (μg/L, log10 刻度)", y = "频数", 
        title = "尿镉分布 (对数变换)") +
   theme_bw()
+print(p1)
+print(p2)
 
 ggsave("缺失率图.png", p1, width = 8, height = 5)
 ggsave("尿镉分布直方图.png", p2, width = 6, height = 4)

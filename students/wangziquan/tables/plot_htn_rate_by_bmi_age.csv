@@ -1,0 +1,13 @@
+age_group,bmi_group_clean,n,hypertension_n,hypertension_rate_pct
+<40,Normal,570,14,2.5
+<40,Underweight,53,2,3.8
+<40,Overweight,440,22,5
+<40,Obesity,668,59,8.8
+40-59,Normal,327,59,18
+40-59,Underweight,23,7,30.4
+40-59,Overweight,514,98,19.1
+40-59,Obesity,699,202,28.9
+>=60,Normal,422,172,40.8
+>=60,Underweight,16,8,50
+>=60,Overweight,679,277,40.8
+>=60,Obesity,765,289,37.8
