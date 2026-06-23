@@ -191,6 +191,8 @@ p2 <- ggplot(data_clean, aes(x = URXUCD)) +
   labs(x = "尿镉浓度 (μg/L, log10 刻度)", y = "频数", 
        title = "尿镉分布 (对数变换)") +
   theme_bw()
+print(p1)
+print(p2)
 
 ggsave("缺失率图.png", p1, width = 8, height = 5)
 ggsave("尿镉分布直方图.png", p2, width = 6, height = 4)

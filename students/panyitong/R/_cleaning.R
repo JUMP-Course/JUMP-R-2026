@@ -89,8 +89,11 @@ clean_data <- clean_data %>%
            BMXBMI >= 30 ~ "Obese",
            TRUE ~ NA_character_),
          education = case_when(
-           DMDEDUC2 %in% c(1, 2) ~ "Below high school",
-           DMDEDUC2 %in% c(3, 4, 5) ~ "High school or higher",
+           DMDEDUC2 == 1 ~  "Lower than grade 9",
+           DMDEDUC2 == 2~ "9–11 grade",
+           DMDEDUC2 == 3~ "Highschool graduate",
+           DMDEDUC2 == 4~ "Some college or AA degree",
+           DMDEDUC2 == 5~ "College graduate or higher",
            TRUE ~ NA_character_),
          pir_group = case_when(
            INDFMPIR < 2 ~ "Low",

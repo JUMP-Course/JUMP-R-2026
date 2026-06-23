@@ -1,0 +1,4 @@
+figure_file,purpose,relation_to_research_question
+04_bmi_distribution_cutoffs.png,Show BMI distribution and BMI classification cutoffs,Describes the exposure variable BMI
+04_hypertension_prevalence_by_bmi_ci.png,Compare hypertension prevalence across BMI groups,Directly addresses whether hypertension prevalence differs by BMI group
+04_hypertension_prevalence_by_bmi_age.png,Explore BMI-hypertension pattern across age groups,Assesses whether the observed pattern may vary by age
