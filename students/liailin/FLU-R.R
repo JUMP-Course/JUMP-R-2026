@@ -254,3 +254,344 @@ cat("4. 连续变量与分类变量的描述规范：\n")
 cat("   - 连续变量（如ILI%）：若正态则用均数±SD，偏态则用中位数（四分位距）。本数据两者兼顾。\n")
 cat("   - 分类变量（如优势毒株）：用频数（百分比），有序分类可补充累积百分比。\n")
 
+# ============================================================
+# 核心图形绘制（变量分布、组间比较、趋势、构成）
+# ============================================================
+
+# 加载绘图包
+install.packages(c("patchwork"))
+library(ggplot2)
+library(patchwork)  # 拼图
+library(RColorBrewer)  # 配色
+
+# 设置图形主题（统一风格）
+theme_set(theme_minimal(base_size = 12) +
+            theme(legend.position = "top",
+                  plot.title = element_text(hjust = 0.5, face = "bold"),
+                  panel.grid.minor = element_blank()))
+
+# 图1. 变量分布图（直方图 + 密度曲线）
+# 1.1 南方ILI分布
+p1_hist <- ggplot(df_clean_core, aes(x = `南方ILI(%)`)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, 
+                 fill = "#E74C3C", alpha = 0.6, color = "white") +
+  geom_density(color = "#C0392B", linewidth = 1.2) +
+  labs(title = "A. 南方ILI(%)分布",
+       x = "南方ILI(%)", y = "密度") +
+  annotate("text", x = 8, y = 0.6, 
+           label = sprintf("均值=%.2f\n中位数=%.2f", 
+                           mean(df_clean_core$`南方ILI(%)`, na.rm=TRUE),
+                           median(df_clean_core$`南方ILI(%)`, na.rm=TRUE)),
+           hjust = 0, size = 3.5)
+# 1.2 北方ILI分布
+p2_hist <- ggplot(df_clean_core, aes(x = `北方ILI(%)`)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, 
+                 fill = "#3498DB", alpha = 0.6, color = "white") +
+  geom_density(color = "#2980B9", linewidth = 1.2) +
+  labs(title = "B. 北方ILI(%)分布",
+       x = "北方ILI(%)", y = "密度") +
+  annotate("text", x = 8, y = 0.6, 
+           label = sprintf("均值=%.2f\n中位数=%.2f", 
+                           mean(df_clean_core$`北方ILI(%)`, na.rm=TRUE),
+                           median(df_clean_core$`北方ILI(%)`, na.rm=TRUE)),
+           hjust = 0, size = 3.5)
+# 1.3 总阳性标本数分布（对数变换展示）
+p3_hist <- ggplot(df_clean_core, aes(x = 总阳性标本数)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, 
+                 fill = "#2ECC71", alpha = 0.6, color = "white") +
+  geom_density(color = "#27AE60", linewidth = 1.2) +
+  labs(title = "C. 总阳性标本数分布",
+       x = "总阳性标本数", y = "密度") +
+  annotate("text", x = 3500, y = 0.0015, 
+           label = sprintf("均值=%.0f\n中位数=%.0f", 
+                           mean(df_clean_core$总阳性标本数, na.rm=TRUE),
+                           median(df_clean_core$总阳性标本数, na.rm=TRUE)),
+           hjust = 0, size = 3.5)
+# 拼图
+combined_hist <- (p1_hist | p2_hist) / p3_hist
+print(combined_hist)
+
+# 图2. 组间比较图（南北方ILI%箱线图）
+# 创建长格式数据用于组间比较
+df_compare <- df_clean_core %>%
+  select(`南方ILI(%)`, `北方ILI(%)`) %>%
+  pivot_longer(everything(), names_to = "区域", values_to = "ILI_percent") %>%
+  mutate(区域 = str_replace(区域, "\\(%\\)", ""))
+
+p_box <- ggplot(df_compare, aes(x = 区域, y = ILI_percent, fill = 区域)) +
+  geom_boxplot(alpha = 0.7, outlier.color = "red", outlier.size = 1.5) +
+  geom_jitter(width = 0.1, alpha = 0.2, size = 0.5) +
+  scale_fill_manual(values = c("南方ILI" = "#E74C3C", "北方ILI" = "#3498DB")) +
+  labs(title = "南北方ILI(%)比较",
+       x = "区域", y = "ILI(%)") +
+  theme(legend.position = "none") +
+  # 添加统计标注
+  annotate("text", x = 1, y = 10.5, 
+           label = sprintf("n=518\n均值=%.2f", 
+                           mean(df_clean_core$`南方ILI(%)`, na.rm=TRUE)),
+           hjust = 0.5, size = 3.5) +
+  annotate("text", x = 2, y = 10.5, 
+           label = sprintf("n=518\n均值=%.2f", 
+                           mean(df_clean_core$`北方ILI(%)`, na.rm=TRUE)),
+           hjust = 0.5, size = 3.5)
+
+print(p_box)
+# 图3. 时间趋势图（2015-2024年ILI%变化）
+# 3.1 南北方ILI%时间趋势（双线图）
+p_trend <- df_clean_core %>%
+  ggplot(aes(x = 日期)) +
+  geom_line(aes(y = `南方ILI(%)`, color = "南方"), linewidth = 0.8) +
+  geom_line(aes(y = `北方ILI(%)`, color = "北方"), linewidth = 0.8) +
+  scale_color_manual(values = c("南方" = "#E74C3C", "北方" = "#3498DB")) +
+  labs(title = "2015-2024年南北方ILI(%)变化趋势",
+       x = "年份", y = "ILI(%)",
+       color = "区域") +
+  theme(legend.position = "top") +
+  # 标注2024年高峰
+  annotate("text", x = as.Date("2024-01-01"), y = 10.5, 
+           label = "2024年高峰", size = 3.5, color = "#C0392B") +
+  annotate("point", x = as.Date("2024-01-01"), 
+           y = max(df_clean_core$`南方ILI(%)`, na.rm=TRUE), 
+           color = "#C0392B", size = 3)
+
+print(p_trend)
+# 3.2 各亚型阳性数趋势（堆积面积图）
+p_subtype <- df_clean_core %>%
+  select(日期, H3N2阳性数, `甲H1N1阳性数`, `B(Victoria)阳性数`, `B(Yamagata)阳性数`) %>%
+  pivot_longer(-日期, names_to = "亚型", values_to = "阳性数") %>%
+  ggplot(aes(x = 日期, y = 阳性数, fill = 亚型)) +
+  geom_area(alpha = 0.7) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "各亚型阳性数变化趋势（堆积面积图）",
+       x = "年份", y = "阳性数",
+       fill = "亚型") +
+  theme(legend.position = "top")
+
+print(p_subtype)
+# 图4. 构成图（甲流/乙流占比变化）
+# 4.1 甲流/乙流占比堆积条形图（按年份汇总）
+p_annual <- df_clean_core %>%
+  group_by(年份) %>%
+  summarise(
+    甲流占比 = mean(`甲流占阳性比(%)`, na.rm = TRUE),
+    乙流占比 = mean(`乙流占阳性比(%)`, na.rm = TRUE)
+  ) %>%
+  pivot_longer(-年份, names_to = "型别", values_to = "占比") %>%
+  ggplot(aes(x = as.factor(年份), y = 占比, fill = 型别)) +
+  geom_bar(stat = "identity", position = "fill") +
+  scale_fill_manual(values = c("甲流占比" = "#E74C3C", "乙流占比" = "#3498DB")) +
+  labs(title = "各年度甲流/乙流占比变化",
+       x = "年份", y = "构成比(%)",
+       fill = "型别") +
+  theme(legend.position = "top") +
+  scale_y_continuous(labels = scales::percent_format())
+
+print(p_annual)
+# 4.2 甲流/乙流占比时间趋势折线图
+p_ab_line <- df_clean_core %>%
+  select(日期, `甲流占阳性比(%)`, `乙流占阳性比(%)`) %>%
+  pivot_longer(-日期, names_to = "型别", values_to = "占比") %>%
+  ggplot(aes(x = 日期, y = 占比, color = 型别)) +
+  geom_line(linewidth = 0.8) +
+  scale_color_manual(values = c("甲流占阳性比(%)" = "#E74C3C", 
+                                "乙流占阳性比(%)" = "#3498DB")) +
+  labs(title = "甲流/乙流占阳性比时间趋势",
+       x = "年份", y = "占比(%)",
+       color = "型别") +
+  theme(legend.position = "top")
+
+print(p_ab_line)
+# 加载统计包
+library(tidyverse)
+library(broom)  # 整洁模型输出
+
+# ============================================================
+# 一、组间比较：南方 vs 北方 ILI%
+# ============================================================
+
+cat("\n========== 1. 南北方 ILI% 组间比较 ==========\n")
+
+# 创建长格式数据（用于比较）
+df_compare <- df_clean_core %>%
+  select(`南方ILI(%)`, `北方ILI(%)`) %>%
+  pivot_longer(everything(), names_to = "区域", values_to = "ILI_percent") %>%
+  mutate(区域 = str_replace(区域, "\\(%\\)", ""))
+
+# 1.1 正态性检验（决定用 t检验还是 Wilcoxon 检验）
+cat("\n--- 正态性检验（Shapiro-Wilk）---\n")
+south_data <- df_clean_core$`南方ILI(%)` %>% na.omit()
+north_data <- df_clean_core$`北方ILI(%)` %>% na.omit()
+
+shapiro_south <- shapiro.test(south_data)
+shapiro_north <- shapiro.test(north_data)
+
+cat("南方 ILI% W =", round(shapiro_south$statistic, 4), 
+    "p =", format(shapiro_south$p.value, scientific = TRUE, digits = 4), "\n")
+cat("北方 ILI% W =", round(shapiro_north$statistic, 4), 
+    "p =", format(shapiro_north$p.value, scientific = TRUE, digits = 4), "\n")
+
+# 正态性判断：p < 0.05 表示不服从正态分布
+if (shapiro_south$p.value < 0.05 | shapiro_north$p.value < 0.05) {
+  cat("数据不服从正态分布（p < 0.05），使用 Wilcoxon 秩和检验\n")
+  
+  # Wilcoxon 秩和检验
+  test_result <- wilcox.test(south_data, north_data, paired = FALSE)
+  cat("\n--- Wilcoxon 秩和检验结果 ---\n")
+  cat("W =", test_result$statistic, "\n")
+  cat("p =", format(test_result$p.value, scientific = TRUE, digits = 4), "\n")
+  cat("结论：")
+  if (test_result$p.value < 0.05) {
+    cat("南北方 ILI% 差异具有统计学显著性（p < 0.05）\n")
+  } else {
+    cat("南北方 ILI% 差异无统计学显著性（p ≥ 0.05）\n")
+  }
+} else {
+  # 方差齐性检验
+  var_test <- var.test(south_data, north_data)
+  cat("方差齐性检验 p =", format(var_test$p.value, scientific = TRUE, digits = 4), "\n")
+  
+  # t检验（根据方差齐性选择）
+  t_test <- t.test(south_data, north_data, var.equal = (var_test$p.value > 0.05))
+  cat("\n--- t检验结果 ---\n")
+  cat("t =", round(t_test$statistic, 4), "\n")
+  cat("df =", round(t_test$parameter, 2), "\n")
+  cat("p =", format(t_test$p.value, scientific = TRUE, digits = 4), "\n")
+  cat("95% CI = [", round(t_test$conf.int[1], 4), ", ", round(t_test$conf.int[2], 4), "]\n")
+}
+
+# 1.2 效应量计算（Cohen's d 或 r）
+cat("\n--- 效应量（Effect Size）---\n")
+# 使用 Z 值计算 r (适用于 Wilcoxon)
+# 此处使用秩和检验的 Z 值计算效应量 r = Z / sqrt(N)
+# 因无法直接从 wilcox.test 获取 Z，使用近似方法
+n_total <- length(south_data) + length(north_data)
+# 使用均数差/合并标准差作为效应量近似
+pooled_sd <- sqrt(((length(south_data)-1)*var(south_data) + 
+                     (length(north_data)-1)*var(north_data)) / 
+                    (length(south_data) + length(north_data) - 2))
+cohens_d <- abs(mean(south_data) - mean(north_data)) / pooled_sd
+cat("Cohen's d =", round(cohens_d, 4), "\n")
+cat("效应量解读：d < 0.2 为极小，0.2-0.5 为小，0.5-0.8 为中，>0.8 为大\n")
+
+# ============================================================
+# 二、时间趋势分析：ILI% 随年份的变化趋势
+# ============================================================
+
+cat("\n========== 2. 时间趋势分析 ==========\n")
+
+# 2.1 南方 ILI% 时间趋势（线性回归）
+cat("\n--- 南方 ILI% 时间趋势 ---\n")
+model_south <- lm(`南方ILI(%)` ~ 年份, data = df_clean_core)
+summary_south <- summary(model_south)
+cat("回归方程：南方ILI% =", round(coef(model_south)[1], 4), 
+    "+", round(coef(model_south)[2], 4), "× 年份\n")
+cat("R² =", round(summary_south$r.squared, 4), "\n")
+cat("年份系数 =", round(coef(model_south)[2], 4), 
+    "，p =", format(summary_south$coefficients[2, 4], scientific = TRUE, digits = 4), "\n")
+if (summary_south$coefficients[2, 4] < 0.05) {
+  cat("结论：南方 ILI% 随时间有显著的线性趋势（p < 0.05）\n")
+} else {
+  cat("结论：南方 ILI% 随时间无显著线性趋势（p ≥ 0.05）\n")
+}
+
+# 2.2 北方 ILI% 时间趋势（线性回归）
+cat("\n--- 北方 ILI% 时间趋势 ---\n")
+model_north <- lm(`北方ILI(%)` ~ 年份, data = df_clean_core)
+summary_north <- summary(model_north)
+cat("回归方程：北方ILI% =", round(coef(model_north)[1], 4), 
+    "+", round(coef(model_north)[2], 4), "× 年份\n")
+cat("R² =", round(summary_north$r.squared, 4), "\n")
+cat("年份系数 =", round(coef(model_north)[2], 4), 
+    "，p =", format(summary_north$coefficients[2, 4], scientific = TRUE, digits = 4), "\n")
+if (summary_north$coefficients[2, 4] < 0.05) {
+  cat("结论：北方 ILI% 随时间有显著的线性趋势（p < 0.05）\n")
+} else {
+  cat("结论：北方 ILI% 随时间无显著线性趋势（p ≥ 0.05）\n")
+}
+
+# 2.3 模型诊断
+cat("\n--- 模型诊断 ---\n")
+par(mfrow = c(2, 2))
+plot(model_south)
+cat("南方模型 Q-Q 图显示残差是否近似正态分布\n")
+par(mfrow = c(1, 1))
+
+# ============================================================
+# 三、季度效应分析（季节性模式）
+# ============================================================
+
+cat("\n========== 3. 季度效应分析 ==========\n")
+
+# 创建季度变量
+df_clean_core <- df_clean_core %>%
+  mutate(
+    季度 = case_when(
+      周次 %in% c(1:13) ~ "Q1",
+      周次 %in% c(14:26) ~ "Q2",
+      周次 %in% c(27:39) ~ "Q3",
+      周次 %in% c(40:53) ~ "Q4"
+    ),
+    季度 = factor(季度, levels = c("Q1", "Q2", "Q3", "Q4"))
+  )
+
+# 按季度汇总描述
+cat("\n--- 各季度南方 ILI% 描述 ---\n")
+df_clean_core %>%
+  group_by(季度) %>%
+  summarise(
+    n = n(),
+    均值 = round(mean(`南方ILI(%)`, na.rm = TRUE), 4),
+    中位数 = round(median(`南方ILI(%)`, na.rm = TRUE), 4),
+    标准差 = round(sd(`南方ILI(%)`, na.rm = TRUE), 4),
+    最小值 = round(min(`南方ILI(%)`, na.rm = TRUE), 4),
+    最大值 = round(max(`南方ILI(%)`, na.rm = TRUE), 4)
+  ) %>%
+  print()
+
+# 方差分析（检验各季度间差异）
+cat("\n--- 季度间差异 ANOVA 检验 ---\n")
+aov_south <- aov(`南方ILI(%)` ~ 季度, data = df_clean_core)
+summary_aov <- summary(aov_south)
+print(summary_aov)
+if (summary_aov[[1]]$`Pr(>F)`[1] < 0.05) {
+  cat("结论：不同季度间南方 ILI% 差异具有统计学显著性（p < 0.05）\n")
+  cat("说明：流感活动存在明显的季节性模式\n")
+} else {
+  cat("结论：不同季度间南方 ILI% 差异无统计学显著性（p ≥ 0.05）\n")
+}
+
+# ============================================================
+# 四、结果汇总表（用于报告）
+# ============================================================
+
+cat("\n========== 4. 主分析结果汇总 ==========\n")
+
+# 创建汇总表
+results_summary <- data.frame(
+  分析项 = c(
+    "南北方 ILI% 比较 (Wilcoxon)",
+    "南方 ILI% 时间趋势 (线性回归)",
+    "北方 ILI% 时间趋势 (线性回归)",
+    "季度间差异 (ANOVA)"
+  ),
+  统计量 = c(
+    paste0("W = ", round(wilcox.test(south_data, north_data)$statistic, 2)),
+    paste0("β = ", round(coef(model_south)[2], 4)),
+    paste0("β = ", round(coef(model_north)[2], 4)),
+    paste0("F = ", round(summary_aov[[1]]$`F value`[1], 4))
+  ),
+  P值 = c(
+    format(wilcox.test(south_data, north_data)$p.value, scientific = TRUE, digits = 4),
+    format(summary_south$coefficients[2, 4], scientific = TRUE, digits = 4),
+    format(summary_north$coefficients[2, 4], scientific = TRUE, digits = 4),
+    format(summary_aov[[1]]$`Pr(>F)`[1], scientific = TRUE, digits = 4)
+  ),
+  结论 = c(
+    ifelse(wilcox.test(south_data, north_data)$p.value < 0.05, "有显著差异", "无显著差异"),
+    ifelse(summary_south$coefficients[2, 4] < 0.05, "趋势显著", "趋势不显著"),
+    ifelse(summary_north$coefficients[2, 4] < 0.05, "趋势显著", "趋势不显著"),
+    ifelse(summary_aov[[1]]$`Pr(>F)`[1] < 0.05, "有季节性差异", "无季节性差异")
+  )
+)
+print(results_summary)
+
