@@ -121,13 +121,3 @@ dim(clean_data)
 table(clean_data$smoking, clean_data$hypertension)
 
 
-
-
-
-
-
-
-
-
-
-
