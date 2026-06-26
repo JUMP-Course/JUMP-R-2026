@@ -1,9 +1,3 @@
-if (!require("car")) install.packages("car")  # 多重共线性检验
-if (!require("pROC")) install.packages("pROC")  # ROC曲线
-if (!require("sjPlot")) install.packages("sjPlot")  # 可视化模型
-library(car)
-library(pROC)
-library(sjPlot)
 ## 6.Logistic回归分析
 
 ### 6.1 单因素Logistic回归分析
