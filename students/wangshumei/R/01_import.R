@@ -1,28 +1,31 @@
-# 1. 安装和加载包
+##==============数据基本情况=================================================
+# 1. 安装和加载包并读取数据
 install.packages("tidyverse", repos = "https://mirrors.tuna.tsinghua.edu.cn/CRAN/")
 install.packages("readr")
 install.packages("survminer")
+install.packages("survival")
+
 library(tidyverse)  #数据处理包，包含dplyr和ggplot2
 library(survival)   #生存分析专用包
 library(survminer)  #画图专用包
 library(readr)      #读取tsv/txt文件更快
-install.packages("survival")
 
-# 2. 设置文件路径并读取数据
+# 设置文件路径并读取数据
 file_path <- "D:/JUMP/clinical.tsv" 
 df <- read_tsv(file_path)
 
-# 3. 查看数据结构 (对应图片要求：变量类型识别)
-# glimpse 会列出每一列的名字和数据类型，非常直观
+#  查看数据结构 
+# glimpse 会列出每一列的名字和数据类型
 glimpse(df)
 
-# 4. 查看前几行数据
+#  查看前几行数据
 head(df)
 
-# 5. 查看所有的列名 (方便你复制粘贴找变量)
+#  查看所有的列名 
 colnames(df)
+#-----------------------------------------------------------------------------
 
-# 6. 提取我所需要的列
+# 2. 提取我所需要的列
 library(dplyr)
 df_selected <- df %>%
   select(cases.submitter_id,
@@ -34,23 +37,23 @@ df_selected <- df %>%
          demographic.age_at_index,
          diagnoses.figo_stage,
          treatments.treatment_type
-         )
+  )
 
-# 1. 看看 df_selected 有哪些列
+# 看看 df_selected 有哪些列
 colnames(df_selected)
 
-# 2. 看看 df_selected 的前 10 行
+# 看看 df_selected 的前 10 行
 head(df_selected, 10)
+#-------------------------------------------------------------------------------------
 
-library(dplyr)
-
-#为每位患者合并治疗信息，但保留唯一的临床信息
+# 3.为每位患者合并治疗信息，但保留唯一的临床信息
 df_final <- df_selected %>%
   group_by(cases.submitter_id) %>%
   summarise(
     tumor_grade = first(na.omit(diagnoses.tumor_grade)),
     vital_status = first(na.omit(demographic.vital_status)),
     days_to_death = first(na.omit(demographic.days_to_death)),
+    lost_to_followup = first(na.omit( cases.lost_to_followup)),
     days_to_last_follow_up = first(na.omit(diagnoses.days_to_last_follow_up)),
     age_at_index = first(na.omit(demographic.age_at_index)),
     figo_stage = first(na.omit(diagnoses.figo_stage)),
@@ -60,24 +63,21 @@ df_final <- df_selected %>%
 
 # 查看结果
 head(df_final)
-
 nrow(df_final)
 glimpse(df_final)
 
-# 查看 figo_stage 的缺失情况
-sum(is.na(df_final$figo_stage))
 
-# 1. 查看肿瘤分级分布
+# 查看肿瘤分级分布
 table(df_final$tumor_grade, useNA = "ifany")
 
-# 2. 查看生存状态分布
+# 查看生存状态分布
 table(df_final$vital_status, useNA = "ifany")
 
-# 3. 查看FIGO分期分布
+#  查看FIGO分期分布
 table(df_final$figo_stage, useNA = "ifany")
 
 
-# 4. 查看年龄的概括性统计（最小值、中位数、平均值、最大值等）
+# 查看年龄的概括性统计（最小值、中位数、平均值、最大值等）
 summary(df_final$age_at_index)
 
 # 将“天数”列从文本型转换为数值型
@@ -99,3 +99,4 @@ ggplot(df_final, aes(x = tumor_grade)) +
   labs(title = "Distribution of Tumor Grade",
        x = "Tumor Grade", y = "Number of Patients") +
   theme_minimal()
+#-----------------------------------------------------------------------------------
