@@ -52,7 +52,6 @@ tbl1 %>%
   flextable::save_as_docx(path = "Table1_加权基线表.docx")
 
 
-set.seed(123)
 
 data_final <- data_final %>%
   mutate(hashimoto_grp = factor(hashimoto, 
@@ -74,6 +73,7 @@ p1 <- ggplot(data_final, aes(x = URXUCD_cr, fill = hashimoto_grp)) +
 ggsave("Figure1_尿镉分布直方图.png", p1, width = 8, height = 5, dpi = 300)
 
 # 图2
+set.seed(123)
 p2 <- ggplot(data_final, aes(x = hashimoto_grp, y = URXUCD_cr, fill = hashimoto_grp)) +
   geom_boxplot(alpha = 0.7, width = 0.6, outlier.shape = NA) +
   geom_jitter(width = 0.2, alpha = 0.15, size = 0.6, color = "gray30") +

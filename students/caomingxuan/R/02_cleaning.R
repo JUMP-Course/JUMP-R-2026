@@ -82,14 +82,13 @@ analysis_data <- analysis_data %>%
       RIDRETH3 == "Non-Hispanic White" ~ 3,
       RIDRETH3 == "Non-Hispanic Black" ~ 4,
       RIDRETH3 == "Non-Hispanic Asian" ~ 5,
-      RIDRETH3 == "Other Race" ~ 5,
+      RIDRETH3 == "Other Race - Including Multi-Racial" ~ 6,
       TRUE ~ NA_real_
     )
   )
-#查看种族分布
+# 查看种族分布
 cat("种族分布:\n")
 print(table(analysis_data$race, useNA = "ifany"))
-
 #删除缺失值
 analysis_data <- analysis_data %>%
   dplyr::filter(
