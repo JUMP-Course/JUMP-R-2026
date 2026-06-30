@@ -469,59 +469,67 @@ cat("亚组结果已保存为：2_亚组分层分析结果_45岁切点.csv\n")
 
 # ========== 8.亚组森林图（尿镉效应） ==========
 library(ggplot2)
+library(stringr) 
 
-# 整理数据，新增分组标记（用于分色/区分大类）
-forest_data <- data.frame(
-  Group = c("性别", "性别", "年龄", "年龄"), # 大类分组
-  Subgroup = c("性别：男", "性别：女", "年龄：<45岁", "年龄：≥45岁"),
-  OR = c(0.83, 2.06, 1.09, 1.15),
-  CI_low = c(0.41, 1.15, 0.90, 0.99),
-  CI_high = c(1.68, 3.71, 1.31, 1.34)
-)
+all_sub_res <- bind_rows(
+  sex_df,
+  age_df_cont
+) %>%
+  rename(
+    estimate = estimate,
+    conf.low = conf.low,
+    conf.high = conf.high
+  )
 
-# 设置Y轴从上到下显示顺序
-forest_data$Subgroup <- factor(forest_data$Subgroup,
-                               levels = c("性别：女", "性别：男",
-                                          "年龄：≥45岁", "年龄：<45岁"))
-
-# 拼接OR(95%CI)文本，图右侧展示
-forest_data$label <- paste0(forest_data$OR, " (", forest_data$CI_low, "-", forest_data$CI_high, ")")
+fforest_input <- all_sub_res %>%
+  rename(
+    Subgroup = Subgroup,
+    OR = estimate,
+    CI_low = conf.low,
+    CI_high = conf.high
+  ) %>%
+  mutate(
+    Group = ifelse(str_detect(Subgroup, "性别"), "性别", "年龄"),
+    Subgroup = factor(Subgroup,
+                      levels = c("性别：女", "性别：男",
+                                 "年龄：≥45岁", "年龄：<45岁")),
+    label_text = paste0(round(OR, 2), " (", round(CI_low, 2), "-", round(CI_high, 2), ")")
+  )
 
 # 绘制森林图
-p <- ggplot(forest_data, aes(x = OR, y = Subgroup, color = Group)) +
-  # 无效参考线
+p <- ggplot(fforest_input, aes(x = OR, y = Subgroup, color = Group)) +
+  # 无效参考线OR=1
   geom_vline(xintercept = 1, linetype = "dashed", color = "gray40", linewidth = 1) +
   # 置信区间误差棒
   geom_errorbarh(aes(xmin = CI_low, xmax = CI_high), 
                  height = 0.2, linewidth = 1.2) +
   # OR点估计
   geom_point(size = 4) +
-  # 右侧数值文本
-  geom_text(aes(label = label, x = CI_high), 
-            hjust = -0.1, size = 4, show.legend = F) +
-  # 对数坐标轴，自定义刻度
+  # 右侧数值文本，匹配上面定义的label_text
+  geom_text(aes(label = label_text, x = CI_high), 
+            hjust = -0.3, size = 4, show.legend = FALSE) +
+  # 对数坐标轴刻度
   scale_x_log10(breaks = c(0.25, 0.5, 1, 2, 4),
-                labels = c("0.25", "0.5", "1", "2", "4")) +
-  # 分组配色
+                labels = c("0.25", "0.5", "1", "2", "4"),
+                limits = c(0.2, 5)) +
+  # 分组配色：性别蓝色、年龄红色
   scale_color_manual(values = c("steelblue", "#e63946")) +
-  # 标题坐标轴
+  # 图表标题
   labs(title = "尿镉与桥本甲状腺炎风险的亚组分析",
-       subtitle = "性别：尿镉四分位Q4 vs Q1；年龄：尿镉每IQR增量",
+       subtitle = "分层维度：性别、年龄（45岁切点）",
        x = "比值比 OR (95% 置信区间)", y = NULL,
        color = "亚组类型") +
-  # 期刊风格主题
+  # 期刊干净主题
   theme_bw(base_size = 14) +
   theme(
     panel.grid.major.y = element_blank(),
-    plot.title = element_text(hjust = 0.5),    # 标题居中
-    plot.subtitle = element_text(hjust = 0.5),# 副标题居中
-    legend.position = "bottom",                # 图例放底部不遮挡图
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "bottom",
     axis.text.y = element_text(size = 13),
-    plot.margin = margin(10, 60, 10, 10)      # 右侧留白给数值文本
+    plot.margin = margin(10, 100, 10, 10)
   )
 
-# 展示图
 print(p)
 
-# 导出
 ggsave("forest_subgroup_cd_HT.tiff", p, width = 10, height = 5, dpi = 600)
