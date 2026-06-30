@@ -68,13 +68,8 @@ for (v in cat_vars) {
 df_valid <- df[!is.na(df[[weight_col]]) & !is.na(df$y), ]
 
 # 构建复杂抽样调查设计对象，用于后续所有加权统计分析
-df_valid <- df[
-  !is.na(df[[weight_col]]) & 
-    !is.na(df[["y"]]) &
-    !is.na(df[["抽样层"]]) &
-    !is.na(df[["初级抽样单元"]]),
-]
 
+svy_des <- svydesign(ids = ~1, weights = ~wt, data = df_valid)
 # ===================== 第六步：单因素加权Logistic回归） =====================
 # 初始化空数据框，用于循环存储所有自变量单因素加权Logistic回归的统计结果
 uni_result <- data.frame(
