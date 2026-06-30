@@ -1,3 +1,6 @@
+install.packages("broom")
+
+library(broom)
 library(survey)
 library(dplyr)
 library(gtsummary)
@@ -23,7 +26,7 @@ for (i in seq_along(cont_vars)) {
   svyhist(as.formula(paste0("~", v)), design = svy_design, 
           main = paste(v, "- 加权直方图"), col = "steelblue", xlab = "")
   
-  # 加权 Q-Q 正态图
+  # 加权 Q-Q 正态图   
   p <- ppoints(200)
   quant_w <- svyquantile(as.formula(paste0("~", v)), design = svy_design,
                          quantiles = p, ci = FALSE)
@@ -31,7 +34,7 @@ for (i in seq_along(cont_vars)) {
        xlab = "理论正态分位数", ylab = "加权分位数", main = paste(v, "- 加权Q-Q图"))
   abline(0, 1, col = "red", lty = 2)
   
-  # 提取数据+权重，并过滤缺失值
+  # 提取数据+权重
   dat <- svy_design$variables
   w <- weights(svy_design)
   x <- dat[[v]]
@@ -67,7 +70,7 @@ urine_pvalue <- urine_test$p.value
 cat("尿镉: 加权 Wilcoxon 秩和检验\n")
 cat("P 值:", format(urine_pvalue, scientific = FALSE, digits = 4), "\n\n")
 
-# 两组尿镉加权中位数及置信区间
+# 两组尿镉加权中位数及标准误
 urine_median <- svyby(~URXUCD_cr, ~hashimoto, svy_design, 
                       svyquantile, quantiles = 0.5, ci = TRUE)
 print(urine_median)
@@ -80,14 +83,16 @@ chisq_results <- lapply(cat_vars, function(var) {
   test <- svychisq(formula, design = svy_design, statistic = "F")
   data.frame(
     variable = var,
-    p_value = test$p.value,  # 保留原始数值，不提前round
+    p_value = test$p.value,  
     statistic = round(test$statistic, 2),
     df = paste(test$parameter, collapse = ", ")
   )
 })
 chisq_table <- bind_rows(chisq_results)
 cat("分类变量卡方检验结果：\n")
-print(chisq_table)
+chisq_table %>%
+  mutate(p_value = format(p_value, scientific = FALSE, digits = 4)) %>%
+  print()
 cat("\n")
 
 # 连续协变量检验
@@ -108,7 +113,7 @@ rank_cont_table <- data.frame(
 print(rank_cont_table)
 
 # ==========3.加权基线特征表==========
-# 提取原始P值（不提前四舍五入）
+# 提取原始P值
 age_p   <- age_test$p.value
 bmi_p   <- bmi_test$p.value
 pir_p   <- pir_test$p.value
@@ -157,15 +162,14 @@ tbl_body <- tbl_base$table_body
 # 匹配P值
 tbl_body$p.value <- p_df$p_val[match(tbl_body$variable, p_df$variable)]
 
-# 删去无效的fmt代码
 tbl_final <- tbl_base
 tbl_final$table_body <- tbl_body
 
-# ==========4.结果导出文件（优化P值格式+分类变量填充P值）==========
+# ==========4.结果导出文件==========
 write.csv(chisq_table, "分类变量加权卡方结果.csv", row.names = FALSE)
 write.csv(rank_cont_table, "连续变量加权检验结果.csv", row.names = FALSE)
 
-# 提取数据框并填充分类变量子行P值
+# 提取数据框
 ft_data <- tbl_final$table_body %>%
   select(variable, var_label, label, stat_1, stat_2, p.value) %>%
   mutate(display_label = ifelse(is.na(label) | label == "", var_label, label)) %>%
@@ -239,3 +243,285 @@ logistic_results %>%
 
 save_as_docx(logistic_results %>% flextable() %>% autofit(), 
              path = "Logistic_regression_table.docx")
+
+# ==========6. 剂量反应分析：四分位数分类比较 + 线性趋势检验==========
+
+# 加权四分位数分组 
+cat("\n===== 计算尿镉加权四分位数切点 =====\n")
+quant_obj <- svyquantile(~URXUCD_cr, design = svy_design, 
+                         quantiles = c(0, 0.25, 0.5, 0.75, 1), 
+                         na.rm = TRUE)
+quantiles <- as.numeric(quant_obj$URXUCD_cr[,1])
+cat("四分位数切点值：", quantiles, "\n")
+
+# 创建四分位数变量（Q1为参照）
+svy_design$variables$urine_q <- cut(
+  svy_design$variables$URXUCD_cr,
+  breaks = quantiles,
+  include.lowest = TRUE,
+  labels = c("Q1", "Q2", "Q3", "Q4")
+)
+
+cat("\n各四分位原始样本人数：\n")
+print(table(svy_design$variables$urine_q))
+cat("\n各四分位加权样本人数：\n")
+print(svytotal(~urine_q, svy_design))
+
+# 完全调整模型公式（模型3全部协变量）
+formula_q <- as.formula(
+  hashimoto ~ urine_q + RIDAGEYR + sex + race + education + 
+    INDFMPIR + smoke + hypertension + BMXBMI
+)
+
+# 四分位数模型
+fit_q <- svyglm(formula_q, design = svy_design, family = quasibinomial)
+tidy_q <- tidy(fit_q, conf.int = TRUE, exponentiate = TRUE) %>%
+  filter(grepl("urine_q", term))
+cat("\n四分位数分组OR及95%置信区间：\n")
+print(tidy_q)
+
+# 线性趋势检验（等级作为连续变量）
+svy_design$variables$urine_q_num <- as.numeric(svy_design$variables$urine_q)
+formula_trend <- update(formula_q, . ~ . - urine_q + urine_q_num)
+fit_trend <- svyglm(formula_trend, design = svy_design, family = quasibinomial)
+tidy_trend <- tidy(fit_trend, conf.int = TRUE, exponentiate = TRUE) %>%
+  filter(term == "urine_q_num")
+print(tidy_trend)
+
+# 合并导出剂量-反应汇总表 
+q_results <- tidy_q %>%
+  mutate(
+    OR_CI = paste0(round(estimate, 2), " (", round(conf.low, 2), "-", round(conf.high, 2), ")"),
+    P = round(p.value, 4),
+    Exposure = case_when(
+      term == "urine_qQ2" ~ "Q2",
+      term == "urine_qQ3" ~ "Q3",
+      term == "urine_qQ4" ~ "Q4",
+      TRUE ~ term
+    )
+  ) %>%
+  select(Exposure, OR_CI, P)
+
+trend_line <- data.frame(
+  Exposure = "线性趋势（每升高1个四分位等级）",
+  OR_CI = paste0(
+    round(tidy_trend$estimate, 2), " (",
+    round(tidy_trend$conf.low, 2), "-",
+    round(tidy_trend$conf.high, 2), ")"
+  ),
+  P = round(tidy_trend$p.value, 4)
+)
+
+dose_response_table <- bind_rows(q_results, trend_line)
+cat("\n===== 剂量-反应分析汇总表 =====\n")
+print(dose_response_table)
+write.csv(dose_response_table, "1_尿镉剂量反应分析结果.csv", row.names = FALSE, fileEncoding = "UTF-8")
+
+#========== 7.亚组分层分析（年龄、性别）==========
+
+# 创建年龄分组
+svy_design$variables$age_group <- ifelse(svy_design$variables$RIDAGEYR < 45, "<45岁", "≥45岁")
+svy_design$variables$age_group <- factor(svy_design$variables$age_group, 
+                                         levels = c("<45岁", "≥45岁"))
+
+# 定义函数：根据子集动态构建公式（剔除单水平因子）
+build_formula <- function(sub_ds) {
+  # 基础暴露变量
+  base_vars <- c("urine_q_num")
+  # 待检查的协变量（数值变量直接保留，因子需检查水平数）
+  candidates <- c("RIDAGEYR", "sex", "race", "education", "INDFMPIR", "smoke", "hypertension", "BMXBMI")
+  keep_vars <- base_vars  # 先放入urine_q
+  
+  for (v in candidates) {
+    if (v %in% names(sub_ds$variables)) {
+      val <- sub_ds$variables[[v]]
+      # 如果是因子或字符型，检查水平数（去重后>1）
+      if (is.factor(val) || is.character(val)) {
+        if (length(unique(na.omit(val))) > 1) {
+          keep_vars <- c(keep_vars, v)
+        }
+      } else {
+        # 数值型直接保留（如年龄、PIR、BMI）
+        keep_vars <- c(keep_vars, v)
+      }
+    }
+  }
+  # 组装公式字符串：结局 ~ 变量1 + 变量2 + ...
+  formula_str <- paste("hashimoto ~", paste(keep_vars, collapse = " + "))
+  return(as.formula(formula_str))
+}
+
+#===== 年龄分层=====
+age_levels <- levels(svy_design$variables$age_group)
+age_list_cont <- list()
+
+for (g in age_levels) {
+  sub_ds <- subset(svy_design, age_group == g)
+  sub_ds <- subset(sub_ds,
+                   !is.na(hashimoto) & !is.na(RIDAGEYR) & !is.na(race) & !is.na(education) &
+                     !is.na(INDFMPIR) & !is.na(smoke) & !is.na(hypertension) & !is.na(BMXBMI))
+  
+  # 动态构建公式（使用 urine_q_num 连续等级，而不是 Q4 vs Q1）
+  formula_cont <- build_formula(sub_ds)
+  
+  fit <- tryCatch(
+    svyglm(formula_cont, design = sub_ds, family = quasibinomial),
+    error = function(e) {
+      cat("在年龄", g, "中连续模型失败：", e$message, "\n")
+      return(NULL)
+    }
+  )
+  if (is.null(fit)) next
+  # 提取尿镉四分位结果  
+  tidy_fit <- tidy(fit, conf.int = TRUE, exponentiate = TRUE) %>%
+    filter(term == "urine_q_num") %>%
+    mutate(Subgroup = paste0("年龄：", g),
+           OR_CI = paste0(round(estimate, 2), " (", round(conf.low, 2), "-", round(conf.high, 2), ")"),
+           P = round(p.value, 4))
+  age_list_cont[[g]] <- tidy_fit
+}
+
+age_df_cont <- bind_rows(age_list_cont)
+cat("\n===== 年龄分层（连续 IQR 等级） =====\n")
+print(age_df_cont)
+
+# ===== 性别分层=====
+sex_levels <- levels(svy_design$variables$sex)
+sex_list <- list()
+
+for (g in sex_levels) {
+  sub_ds <- subset(svy_design, sex == g)
+  # 过滤所有协变量缺失
+  sub_ds <- subset(sub_ds,
+                   !is.na(hashimoto) & !is.na(RIDAGEYR) & !is.na(race) & !is.na(education) &
+                     !is.na(INDFMPIR) & !is.na(smoke) & !is.na(hypertension) & !is.na(BMXBMI))
+  # 检查样本量
+  if (nrow(sub_ds) < 30) {
+    cat("性别", g, "样本量过小（", nrow(sub_ds), "），跳过\n")
+    next
+  }
+  
+  # 手动构建公式（只包含核心暴露 + 协变量，但自动检查单水平）
+  # 先检查每个协变量在亚组里是否至少有2个水平
+  cox_vars <- c("RIDAGEYR", "race", "education", "INDFMPIR", "smoke", "hypertension", "BMXBMI")
+  keep_vars <- "urine_q_num"  # 核心暴露始终保留
+  
+  for (v in cox_vars) {
+    if (v %in% names(sub_ds$variables)) {
+      val <- sub_ds$variables[[v]]
+      # 数值变量直接保留，分类变量检查水平数
+      if (is.numeric(val) || is.integer(val)) {
+        keep_vars <- c(keep_vars, v)
+      } else if (is.factor(val) || is.character(val)) {
+        if (length(unique(na.omit(val))) > 1) {
+          keep_vars <- c(keep_vars, v)
+        }
+      }
+    }
+  }
+  # 拼成公式
+  formula_str <- paste("hashimoto ~", paste(keep_vars, collapse = " + "))
+  formula_sub <- as.formula(formula_str)
+  # 跑模型
+  fit <- tryCatch(
+    svyglm(formula_sub, design = sub_ds, family = quasibinomial),
+    error = function(e) {
+      cat("在性别", g, "中模型失败：", e$message, "\n")
+      return(NULL)
+    }
+  )
+  if (is.null(fit)) next
+  # 提取结果
+  tidy_fit <- tidy(fit, conf.int = TRUE, exponentiate = TRUE) %>%
+    filter(term == "urine_q_num") %>%
+    mutate(Subgroup = paste0("性别：", g),
+           OR_CI = paste0(round(estimate, 2), " (", round(conf.low, 2), "-", round(conf.high, 2), ")"),
+           P = round(p.value, 4))
+  sex_list[[g]] <- tidy_fit
+}
+ # 合并结果
+sex_df <- bind_rows(sex_list)
+cat("\n===== 性别分层结果（连续 IQR 等级） =====\n")
+print(sex_df)
+
+# 合并导出
+subgroup_results <- bind_rows(
+  sex_df %>% mutate(Subgroup = as.character(Subgroup)),
+  age_df_cont %>% mutate(Subgroup = as.character(Subgroup))
+) %>% 
+  mutate(
+    OR_CI = paste0(round(estimate, 2), " (", round(conf.low, 2), "-", round(conf.high, 2), ")"),
+    P = round(p.value, 4),
+    Exposure = case_when(
+      term == "urine_qQ2" ~ "Q2",
+      term == "urine_qQ3" ~ "Q3",
+      term == "urine_qQ4" ~ "Q4",
+      TRUE ~ term
+    )
+  ) %>% 
+  select(Subgroup, Exposure, OR_CI, P)
+
+cat("\n===== 亚组分析汇总表（45岁切点，动态剔除单水平因子） =====\n")
+print(subgroup_results)
+
+write.csv(subgroup_results, "2_亚组分层分析结果_45岁切点.csv", row.names = FALSE, fileEncoding = "UTF-8")
+cat("亚组结果已保存为：2_亚组分层分析结果_45岁切点.csv\n")
+
+# ========== 8.亚组森林图（尿镉效应） ==========
+library(ggplot2)
+
+# 整理数据，新增分组标记（用于分色/区分大类）
+forest_data <- data.frame(
+  Group = c("性别", "性别", "年龄", "年龄"), # 大类分组
+  Subgroup = c("性别：男", "性别：女", "年龄：<45岁", "年龄：≥45岁"),
+  OR = c(0.83, 2.06, 1.09, 1.15),
+  CI_low = c(0.41, 1.15, 0.90, 0.99),
+  CI_high = c(1.68, 3.71, 1.31, 1.34)
+)
+
+# 设置Y轴从上到下显示顺序
+forest_data$Subgroup <- factor(forest_data$Subgroup,
+                               levels = c("性别：女", "性别：男",
+                                          "年龄：≥45岁", "年龄：<45岁"))
+
+# 拼接OR(95%CI)文本，图右侧展示
+forest_data$label <- paste0(forest_data$OR, " (", forest_data$CI_low, "-", forest_data$CI_high, ")")
+
+# 绘制森林图
+p <- ggplot(forest_data, aes(x = OR, y = Subgroup, color = Group)) +
+  # 无效参考线
+  geom_vline(xintercept = 1, linetype = "dashed", color = "gray40", linewidth = 1) +
+  # 置信区间误差棒
+  geom_errorbarh(aes(xmin = CI_low, xmax = CI_high), 
+                 height = 0.2, linewidth = 1.2) +
+  # OR点估计
+  geom_point(size = 4) +
+  # 右侧数值文本
+  geom_text(aes(label = label, x = CI_high), 
+            hjust = -0.1, size = 4, show.legend = F) +
+  # 对数坐标轴，自定义刻度
+  scale_x_log10(breaks = c(0.25, 0.5, 1, 2, 4),
+                labels = c("0.25", "0.5", "1", "2", "4")) +
+  # 分组配色
+  scale_color_manual(values = c("steelblue", "#e63946")) +
+  # 标题坐标轴
+  labs(title = "尿镉与桥本甲状腺炎风险的亚组分析",
+       subtitle = "性别：尿镉四分位Q4 vs Q1；年龄：尿镉每IQR增量",
+       x = "比值比 OR (95% 置信区间)", y = NULL,
+       color = "亚组类型") +
+  # 期刊风格主题
+  theme_bw(base_size = 14) +
+  theme(
+    panel.grid.major.y = element_blank(),
+    plot.title = element_text(hjust = 0.5),    # 标题居中
+    plot.subtitle = element_text(hjust = 0.5),# 副标题居中
+    legend.position = "bottom",                # 图例放底部不遮挡图
+    axis.text.y = element_text(size = 13),
+    plot.margin = margin(10, 60, 10, 10)      # 右侧留白给数值文本
+  )
+
+# 展示图
+print(p)
+
+# 导出
+ggsave("forest_subgroup_cd_HT.tiff", p, width = 10, height = 5, dpi = 600)
