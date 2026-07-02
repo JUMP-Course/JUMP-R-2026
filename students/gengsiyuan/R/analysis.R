@@ -611,7 +611,7 @@ p <- ggplot(fforest_input, aes(x = OR, y = Subgroup, color = Group)) +
     panel.grid.major.y = element_blank(),
     plot.title = element_text(hjust = 0.5),
     plot.subtitle = element_text(hjust = 0.5),
-    plot.caption = element_text(hjust = 0, size = 10, face = "italic"),  # 脚注样式
+    plot.caption = element_text(hjust = 0.5, size = 10, face = "italic"),  # 脚注样式
     legend.position = "bottom",
     axis.text.y = element_text(size = 13),
     plot.margin = margin(10, 50, 20, 10)  
