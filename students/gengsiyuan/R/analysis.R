@@ -545,25 +545,12 @@ print(tidy_sex_interaction)
 library(ggplot2)
 library(stringr) 
 
-# 定义P值格式化函数
-format_p <- function(p) {
-  if (is.na(p)) return("NA")
-  if (p < 0.001) return("<0.001")
-  if (p < 0.01) return(sprintf("%.3f", p))
-  return(sprintf("%.4f", p))
-}
-
 # 合并数据 
 all_sub_res <- bind_rows(
   sex_df,
   age_df_cont
 ) %>%
-  rename(
-    estimate = estimate,
-    conf.low = conf.low,
-    conf.high = conf.high
-  )
-
+  
 #  准备绘图数据
 fforest_input <- all_sub_res %>%
   rename(
@@ -613,7 +600,7 @@ p <- ggplot(fforest_input, aes(x = OR, y = Subgroup, color = Group)) +
     x = "比值比 OR (95% 置信区间)", 
     y = NULL,
     color = "亚组类型",
-    # ===== 关键修改：添加交互P值脚注 =====
+    # 添加交互P值脚注
     caption = paste0(
       "交互作用 P 值：年龄×尿镉 = ", format_p(age_interaction_p),
       "；性别×尿镉 = ", format_p(sex_interaction_p)
@@ -627,7 +614,7 @@ p <- ggplot(fforest_input, aes(x = OR, y = Subgroup, color = Group)) +
     plot.caption = element_text(hjust = 0, size = 10, face = "italic"),  # 脚注样式
     legend.position = "bottom",
     axis.text.y = element_text(size = 13),
-    plot.margin = margin(10, 150, 20, 10)  # 右侧和底部留更多空间
+    plot.margin = margin(10, 50, 20, 10)  
   )
 
 print(p)
