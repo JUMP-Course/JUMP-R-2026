@@ -467,10 +467,93 @@ print(subgroup_results)
 write.csv(subgroup_results, "2_亚组分层分析结果_45岁切点.csv", row.names = FALSE, fileEncoding = "UTF-8")
 cat("亚组结果已保存为：2_亚组分层分析结果_45岁切点.csv\n")
 
-# ========== 8.亚组森林图（尿镉效应） ==========
+library(survey)
+library(broom)
+library(dplyr)
+library(stringr)
+
+# ==========8.交互作用检验==========
+# 新增交互变量
+svy_design_inter <- update(svy_design,
+                           age_group_num = ifelse(age_group == "≥45岁", 1, 0),  # 1=≥45岁，0=<45岁
+                           sex_num = ifelse(sex == "女", 1, 0)                  # 1=女性，0=男性
+)
+
+# =====年龄 × 尿镉交互模型=====
+interaction_age <- svyglm(
+  hashimoto ~ urine_q_num * age_group_num +     
+    sex + race + education + INDFMPIR +         
+    smoke + hypertension + BMXBMI,
+  design = svy_design_inter,
+  family = quasibinomial
+)
+
+# 提取年龄交互P值
+tidy_age_interaction <- tidy(interaction_age, conf.int = TRUE, exponentiate = TRUE)
+age_inter_p_df <- tidy_age_interaction %>%
+  filter(str_detect(term, "urine_q_num:age_group_num"))
+if(nrow(age_inter_p_df) == 0) stop("未匹配到年龄交互项，请检查变量名！")
+age_interaction_p <- pull(age_inter_p_df, p.value)
+if(is.na(age_interaction_p)) warning("年龄交互项P值为NA，请检查模型收敛与样本量！")
+
+# ===== 性别 × 尿镉交互模型 =====
+interaction_sex <- svyglm(
+  hashimoto ~ urine_q_num * sex_num +           
+    RIDAGEYR + race + education + INDFMPIR +    
+    smoke + hypertension + BMXBMI,
+  design = svy_design_inter,
+  family = quasibinomial
+)
+
+# 提取性别交互P值
+tidy_sex_interaction <- tidy(interaction_sex, conf.int = TRUE, exponentiate = TRUE)
+sex_inter_p_df <- tidy_sex_interaction %>%
+  filter(str_detect(term, "urine_q_num:sex_num"))
+if(nrow(sex_inter_p_df) == 0) stop("未匹配到性别交互项，请检查变量名！")
+sex_interaction_p <- pull(sex_inter_p_df, p.value)
+if(is.na(sex_interaction_p)) warning("性别交互项P值为NA，请检查模型收敛与样本量！")
+
+# 自定义P值格式化函数
+format_p <- function(p) {
+  if (is.na(p)) return("NA")
+  if (p < 0.001) return("<0.001")
+  if (p < 0.01) return(sprintf("%.3f", p))
+  return(sprintf("%.4f", p))
+}
+
+cat("\n===== 交互作用 P 值 =====\n")
+cat("年龄 × 尿镉: P =", format_p(age_interaction_p), "\n")
+cat("性别 × 尿镉: P =", format_p(sex_interaction_p), "\n")
+
+# 汇总交互结果
+interaction_results <- data.frame(
+  Interaction = c("年龄 × 尿镉", "性别 × 尿镉"),
+  P_value_raw = c(age_interaction_p, sex_interaction_p),
+  P_formatted = c(format_p(age_interaction_p), format_p(sex_interaction_p))
+)
+
+print(interaction_results)
+write.csv(interaction_results, "交互作用检验结果.csv", row.names = FALSE, fileEncoding = "UTF-8")
+
+# 核对模型系数，排查共线性、奇异值
+cat("\n===== 年龄交互模型全部系数 =====\n")
+print(tidy_age_interaction)
+cat("\n===== 性别交互模型全部系数 =====\n")
+print(tidy_sex_interaction)
+
+# ========== 9.亚组森林图（尿镉效应） ==========
 library(ggplot2)
 library(stringr) 
 
+# 定义P值格式化函数
+format_p <- function(p) {
+  if (is.na(p)) return("NA")
+  if (p < 0.001) return("<0.001")
+  if (p < 0.01) return(sprintf("%.3f", p))
+  return(sprintf("%.4f", p))
+}
+
+# 合并数据 
 all_sub_res <- bind_rows(
   sex_df,
   age_df_cont
@@ -481,6 +564,7 @@ all_sub_res <- bind_rows(
     conf.high = conf.high
   )
 
+#  准备绘图数据
 fforest_input <- all_sub_res %>%
   rename(
     Subgroup = Subgroup,
@@ -490,46 +574,61 @@ fforest_input <- all_sub_res %>%
   ) %>%
   mutate(
     Group = ifelse(str_detect(Subgroup, "性别"), "性别", "年龄"),
+    Subgroup = case_when(
+      Subgroup == "≥45岁" ~ "年龄：≥45岁",
+      Subgroup == "<45岁" ~ "年龄：<45岁",
+      TRUE ~ Subgroup
+    ),
     Subgroup = factor(Subgroup,
                       levels = c("性别：女", "性别：男",
-                                 "年龄：≥45岁", "年龄：<45岁")),
-    label_text = paste0(round(OR, 2), " (", round(CI_low, 2), "-", round(CI_high, 2), ")")
+                                 "年龄：<45岁", "年龄：≥45岁")),
+    p_label = case_when(
+      p.value < 0.001 ~ "P < 0.001",
+      p.value < 0.01  ~ paste0("P = ", round(p.value, 3)),
+      TRUE            ~ paste0("P = ", round(p.value, 2))
+    ),
+    label_text = paste0(
+      round(OR, 2), " (", round(CI_low, 2), "-", round(CI_high, 2), ")\n",
+      p_label
+    )
   )
 
 # 绘制森林图
 p <- ggplot(fforest_input, aes(x = OR, y = Subgroup, color = Group)) +
-  # 无效参考线OR=1
   geom_vline(xintercept = 1, linetype = "dashed", color = "gray40", linewidth = 1) +
-  # 置信区间误差棒
-  geom_errorbarh(aes(xmin = CI_low, xmax = CI_high), 
-                 height = 0.2, linewidth = 1.2) +
-  # OR点估计
+  geom_errorbar(aes(xmin = CI_low, xmax = CI_high), 
+                width = 0.2, 
+                orientation = "y",
+                linewidth = 1.2) +
   geom_point(size = 4) +
-  # 右侧数值文本，匹配上面定义的label_text
   geom_text(aes(label = label_text, x = CI_high), 
             hjust = -0.3, size = 4, show.legend = FALSE) +
-  # 对数坐标轴刻度
   scale_x_log10(breaks = c(0.25, 0.5, 1, 2, 4),
                 labels = c("0.25", "0.5", "1", "2", "4"),
-                limits = c(0.2, 5)) +
-  # 分组配色：性别蓝色、年龄红色
+                limits = c(0.2, 5.5)) +  # 扩大范围
   scale_color_manual(values = c("steelblue", "#e63946")) +
-  # 图表标题
-  labs(title = "尿镉与桥本甲状腺炎风险的亚组分析",
-       subtitle = "分层维度：性别、年龄（45岁切点）",
-       x = "比值比 OR (95% 置信区间)", y = NULL,
-       color = "亚组类型") +
-  # 期刊干净主题
+  labs(
+    title = "尿镉与桥本甲状腺炎风险的亚组分析",
+    subtitle = "分层维度：性别、年龄（45岁切点）",
+    x = "比值比 OR (95% 置信区间)", 
+    y = NULL,
+    color = "亚组类型",
+    # ===== 关键修改：添加交互P值脚注 =====
+    caption = paste0(
+      "交互作用 P 值：年龄×尿镉 = ", format_p(age_interaction_p),
+      "；性别×尿镉 = ", format_p(sex_interaction_p)
+    )
+  ) +
   theme_bw(base_size = 14) +
   theme(
     panel.grid.major.y = element_blank(),
     plot.title = element_text(hjust = 0.5),
     plot.subtitle = element_text(hjust = 0.5),
+    plot.caption = element_text(hjust = 0, size = 10, face = "italic"),  # 脚注样式
     legend.position = "bottom",
     axis.text.y = element_text(size = 13),
-    plot.margin = margin(10, 100, 10, 10)
+    plot.margin = margin(10, 150, 20, 10)  # 右侧和底部留更多空间
   )
 
 print(p)
-
 ggsave("forest_subgroup_cd_HT.tiff", p, width = 10, height = 5, dpi = 600)
