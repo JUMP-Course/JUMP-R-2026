@@ -7,7 +7,14 @@ library(survey)
 clean_data <- readRDS("clean_data.rds")
 clean_data$smoking <- relevel(factor(clean_data$smoking), ref = "Never")
 levels(factor(clean_data$smoking))
-
+clean_data$race <- relevel(factor(clean_data$race), ref = "Non-Hispanic White")
+levels(clean_data$race)
+clean_data$education <- relevel(factor(clean_data$education), ref = "College or above")
+levels(clean_data$education)
+clean_data$income <- relevel(factor(clean_data$pir_group), ref = "High")
+levels(clean_data$income)
+clean_data$age_group <- relevel(factor(clean_data$age_group), ref = "≤60")
+levels(clean_data$income)
 # 设置 survey 设计对象（用于加权）
 design <- svydesign(
   id = ~SDMVPSU,
@@ -47,13 +54,10 @@ print(p1)
 
 # 图2：加权Logistic回归森林图
 
-# 带惩罚拟合，CI全部收敛为有限正数
-
 fit_model <- svyglm(
-  hypertension ~ smoking + age_group + gender + race + bmi_group + education + pir_group,
+  hypertension ~ smoking + age_group + gender + race + bmi_group  ,
   design = design,
-  family = binomial(link = "logit"),
-  method = "brglmFit")
+  family = binomial(link = "logit"))
 
 # 用 summary 提取结果
 summ <- summary(fit_model)
@@ -87,19 +91,15 @@ or_data$variable <- gsub("age_group", "", or_data$variable)
 or_data$variable <- gsub("gender", "", or_data$variable)
 or_data$variable <- gsub("race", "", or_data$variable)
 or_data$variable <- gsub("bmi_group", "", or_data$variable)
-or_data$variable <- gsub("education", "", or_data$variable)
-or_data$variable <- gsub("pir_group", "", or_data$variable)
 
 # 添加分组标签
 or_data$group <- c(
   rep("吸烟 (ref: Never)", 2),
-  rep("年龄 (ref: 20-39)", 2),
+  "年龄 (ref: ≤60)",
   "性别 (ref: Female)",
   rep("种族(ref: Non-Hispanic White)", 5),
-  rep("BMI (ref: Normal)", 3),
-  rep("教育 (ref: College graduate or higher)", 4),
-  rep("收入 (ref: High)", 2)
-)
+  rep("BMI (ref: Normal)", 3))
+  
 
 # 绘图
 
@@ -126,6 +126,7 @@ p2 <- ggplot(or_data, aes(x = OR, y = variable, color = group)) +
     axis.title.x = element_text(size = 12),
     axis.text = element_text(size = 11),
     legend.position = "bottom")
+
 
 print(p2)
 
