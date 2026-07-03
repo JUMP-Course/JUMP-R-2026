@@ -142,9 +142,33 @@ cat_svy_stat <- function(var_name, svy_obj) {
 # 9. 连续变量的加权描述统计
 # 本模块定义自定义函数，实现连续变量的加权描述统计，先做正态性检验，再选择适配的统计量，符合统计学规范
 # ==============================================
-# 自定义函数：输入连续变量名、加权调查设计对象，正态分布输出"均值±标准差"，非正态分布输出"中位数(四分位数)"
+# 自定义函数：输入连续变量名、分组加权调查对象，正态判定依据全样本整体分布
 cont_svy_stat <- function(var_name, svy_obj) {
-  # 提取调查设计对象中的原始数据框
+  # 提取全样本调查设计对象中的原始数据框
+  dat_full <- svy_design$variables
+  # 提取该连续变量的数值向量
+  x_full_vec <- dat_full[[var_name]]
+  # 提取对应样本的抽样权重向量
+  w_full_vec <- dat_full[[weight_col]]
+  # 筛选出变量值与权重均无缺失的有效样本，避免缺失值导致统计结果异常
+  idx_full <- !is.na(x_full_vec) & !is.na(w_full_vec)
+  x_full_clean <- x_full_vec[idx_full]
+  # 统计全样本有效样本量
+  n_full <- length(x_full_clean)
+  # 全样本有效样本量不足2时，直接返回样本不足提示
+  if (n_full < 2) return("样本不足")
+  
+  # 样本量≤5000时，采用Shapiro-Wilk检验进行正态性检验；大样本下正态性检验意义有限，直接设P值为0
+  if (n_full <= 5000) {
+    shap_p <- shapiro.test(x_full_clean)$p.value
+  } else {
+    shap_p <- 0
+  }
+  # 正态分布判断依据：全样本整体分布
+  full_normal <- shap_p > 0.05
+  
+  # ===================== 提取分组的数据，用于计算描述统计 =====================
+  # 提取传入分组调查设计对象中的原始数据框
   dat_tmp <- svy_obj$variables
   # 提取该连续变量的数值向量
   x_vec <- dat_tmp[[var_name]]
@@ -154,27 +178,23 @@ cont_svy_stat <- function(var_name, svy_obj) {
   idx <- !is.na(x_vec) & !is.na(w_vec)
   x_clean <- x_vec[idx]
   w_clean <- w_vec[idx]
-  # 统计有效样本量
+  # 统计当前分组有效样本量
   n <- length(x_clean)
-  # 有效样本量不足2时，返回样本不足提示，避免统计检验报错
+  # 当前分组有效样本量不足2时，返回样本不足提示，避免统计检验报错
   if (n < 2) return("样本不足")
   
-  # 转化为公式格式，计算该变量的加权均值，适配抽样权重
+  # 转化为公式格式，得到当前分组的全套统计信息的 survey 结果对象
   mean_res <- svymean(as.formula(paste0("~", var_name)), svy_obj, na.rm = TRUE)
+  #提取svymean算出来的加权均值数值,存一个纯数值类型的加权平均值
   w_mean <- coef(mean_res)
-  # 样本量≤5000时，采用Shapiro-Wilk检验进行正态性检验；大样本下正态性检验意义有限，直接设P值为0
-  if (n <= 5000) {
-    shap_p <- shapiro.test(x_clean)$p.value
-  } else {
-    shap_p <- 0
-  }
-  # 正态分布（P>0.05）：计算加权均值±加权标准差
-  if (shap_p > 0.05) {
+  
+  # 正态：统一计算加权均值±加权标准差
+  if (full_normal) {
     # 计算加权标准差，适配抽样权重
     w_sd <- sqrt(sum(w_clean * (x_clean - w_mean)^2) / sum(w_clean))
     # 拼接为"均值±标准差"的规范格式，保留2位小数
     return(paste0(round(w_mean, 2), " ± ", round(w_sd, 2)))
-    # 非正态分布（P≤0.05）：计算加权中位数与四分位数
+    # 非正态：统一计算加权中位数与四分位数
   } else {
     # 计算该变量的加权四分位数（25%、50%、75%分位数）
     q_res <- svyquantile(as.formula(paste0("~", var_name)), svy_obj, c(0.25,0.5,0.75), na.rm=TRUE)
@@ -185,7 +205,6 @@ cont_svy_stat <- function(var_name, svy_obj) {
     return(paste0(round(med,2), " (", round(q1,2), "-", round(q3,2), ")"))
   }
 }
-
 # ==============================================
 # 10. 自定义函数：分类变量组间差异P值
 # 本模块定义自定义函数，计算分类变量两组间差异的P值，根据列联表特征选择适配的统计检验方法，适配抽样权重
