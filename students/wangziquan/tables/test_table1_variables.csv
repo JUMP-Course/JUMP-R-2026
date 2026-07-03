@@ -1,0 +1,6 @@
+variable,group,test,p_value,p_value_rounded,interpretation
+age,bmi_group_clean,Kruskal-Wallis test,1.2788572379905567e-19,0,There is statistical evidence of group difference.
+bmi,bmi_group_clean,Kruskal-Wallis test,0,0,There is statistical evidence of group difference.
+sex_clean,bmi_group_clean,Chi-square test,3.769133294358295e-6,0,There is statistical evidence of group difference.
+smoking_model,bmi_group_clean,Chi-square test,0,0,There is statistical evidence of group difference.
+hypertension_label,bmi_group_clean,Chi-square test,9.551468412006828e-6,0,There is statistical evidence of group difference.
