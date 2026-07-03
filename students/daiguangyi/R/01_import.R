@@ -4,8 +4,8 @@ library(dplyr)
 library(writexl)
 
 # 2. 读取数据
-df1 <- read_excel(file.choose())
-df2 <- read_excel(file.choose())
+df_2017 <- read.csv("D:/R-data/2017-2020合并数据.csv", fileEncoding = "UTF-8")
+df_2021 <- read.csv("D:/R-data/2021-2023合并数据.csv", fileEncoding = "UTF-8")
 
 # 3. 查看数据基本信息
 dim(df1)

@@ -1,8 +1,8 @@
 library(dplyr)
 library(ggplot2)
 
-df_2017_2020 <- read.csv(file.choose())
-df_2021_2023 <- read.csv(file.choose())
+df_2017 <- read.csv("D:/R-data/2017-2020合并数据.csv", fileEncoding = "UTF-8")
+df_2021 <- read.csv("D:/R-data/2021-2023合并数据.csv", fileEncoding = "UTF-8")
 
 n_raw_2017 <- nrow(df_2017_2020)
 n_raw_2021 <- nrow(df_2021_2023)
