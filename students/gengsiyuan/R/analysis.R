@@ -467,61 +467,155 @@ print(subgroup_results)
 write.csv(subgroup_results, "2_亚组分层分析结果_45岁切点.csv", row.names = FALSE, fileEncoding = "UTF-8")
 cat("亚组结果已保存为：2_亚组分层分析结果_45岁切点.csv\n")
 
-# ========== 8.亚组森林图（尿镉效应） ==========
-library(ggplot2)
+library(survey)
+library(broom)
+library(dplyr)
+library(stringr)
 
-# 整理数据，新增分组标记（用于分色/区分大类）
-forest_data <- data.frame(
-  Group = c("性别", "性别", "年龄", "年龄"), # 大类分组
-  Subgroup = c("性别：男", "性别：女", "年龄：<45岁", "年龄：≥45岁"),
-  OR = c(0.83, 2.06, 1.09, 1.15),
-  CI_low = c(0.41, 1.15, 0.90, 0.99),
-  CI_high = c(1.68, 3.71, 1.31, 1.34)
+# ==========8.交互作用检验==========
+# 新增交互变量
+svy_design_inter <- update(svy_design,
+                           age_group_num = ifelse(age_group == "≥45岁", 1, 0),  # 1=≥45岁，0=<45岁
+                           sex_num = ifelse(sex == "女", 1, 0)                  # 1=女性，0=男性
 )
 
-# 设置Y轴从上到下显示顺序
-forest_data$Subgroup <- factor(forest_data$Subgroup,
-                               levels = c("性别：女", "性别：男",
-                                          "年龄：≥45岁", "年龄：<45岁"))
+# =====年龄 × 尿镉交互模型=====
+interaction_age <- svyglm(
+  hashimoto ~ urine_q_num * age_group_num +     
+    sex + race + education + INDFMPIR +         
+    smoke + hypertension + BMXBMI,
+  design = svy_design_inter,
+  family = quasibinomial
+)
 
-# 拼接OR(95%CI)文本，图右侧展示
-forest_data$label <- paste0(forest_data$OR, " (", forest_data$CI_low, "-", forest_data$CI_high, ")")
+# 提取年龄交互P值
+tidy_age_interaction <- tidy(interaction_age, conf.int = TRUE, exponentiate = TRUE)
+age_inter_p_df <- tidy_age_interaction %>%
+  filter(str_detect(term, "urine_q_num:age_group_num"))
+if(nrow(age_inter_p_df) == 0) stop("未匹配到年龄交互项，请检查变量名！")
+age_interaction_p <- pull(age_inter_p_df, p.value)
+if(is.na(age_interaction_p)) warning("年龄交互项P值为NA，请检查模型收敛与样本量！")
+
+# ===== 性别 × 尿镉交互模型 =====
+interaction_sex <- svyglm(
+  hashimoto ~ urine_q_num * sex_num +           
+    RIDAGEYR + race + education + INDFMPIR +    
+    smoke + hypertension + BMXBMI,
+  design = svy_design_inter,
+  family = quasibinomial
+)
+
+# 提取性别交互P值
+tidy_sex_interaction <- tidy(interaction_sex, conf.int = TRUE, exponentiate = TRUE)
+sex_inter_p_df <- tidy_sex_interaction %>%
+  filter(str_detect(term, "urine_q_num:sex_num"))
+if(nrow(sex_inter_p_df) == 0) stop("未匹配到性别交互项，请检查变量名！")
+sex_interaction_p <- pull(sex_inter_p_df, p.value)
+if(is.na(sex_interaction_p)) warning("性别交互项P值为NA，请检查模型收敛与样本量！")
+
+# 自定义P值格式化函数
+format_p <- function(p) {
+  if (is.na(p)) return("NA")
+  if (p < 0.001) return("<0.001")
+  if (p < 0.01) return(sprintf("%.3f", p))
+  return(sprintf("%.4f", p))
+}
+
+cat("\n===== 交互作用 P 值 =====\n")
+cat("年龄 × 尿镉: P =", format_p(age_interaction_p), "\n")
+cat("性别 × 尿镉: P =", format_p(sex_interaction_p), "\n")
+
+# 汇总交互结果
+interaction_results <- data.frame(
+  Interaction = c("年龄 × 尿镉", "性别 × 尿镉"),
+  P_value_raw = c(age_interaction_p, sex_interaction_p),
+  P_formatted = c(format_p(age_interaction_p), format_p(sex_interaction_p))
+)
+
+print(interaction_results)
+write.csv(interaction_results, "交互作用检验结果.csv", row.names = FALSE, fileEncoding = "UTF-8")
+
+# 核对模型系数，排查共线性、奇异值
+cat("\n===== 年龄交互模型全部系数 =====\n")
+print(tidy_age_interaction)
+cat("\n===== 性别交互模型全部系数 =====\n")
+print(tidy_sex_interaction)
+
+# ========== 9.亚组森林图（尿镉效应） ==========
+library(ggplot2)
+library(stringr) 
+
+# 合并数据 
+all_sub_res <- bind_rows(
+  sex_df,
+  age_df_cont
+) %>%
+  
+#  准备绘图数据
+fforest_input <- all_sub_res %>%
+  rename(
+    Subgroup = Subgroup,
+    OR = estimate,
+    CI_low = conf.low,
+    CI_high = conf.high
+  ) %>%
+  mutate(
+    Group = ifelse(str_detect(Subgroup, "性别"), "性别", "年龄"),
+    Subgroup = case_when(
+      Subgroup == "≥45岁" ~ "年龄：≥45岁",
+      Subgroup == "<45岁" ~ "年龄：<45岁",
+      TRUE ~ Subgroup
+    ),
+    Subgroup = factor(Subgroup,
+                      levels = c("性别：女", "性别：男",
+                                 "年龄：<45岁", "年龄：≥45岁")),
+    p_label = case_when(
+      p.value < 0.001 ~ "P < 0.001",
+      p.value < 0.01  ~ paste0("P = ", round(p.value, 3)),
+      TRUE            ~ paste0("P = ", round(p.value, 2))
+    ),
+    label_text = paste0(
+      round(OR, 2), " (", round(CI_low, 2), "-", round(CI_high, 2), ")\n",
+      p_label
+    )
+  )
 
 # 绘制森林图
-p <- ggplot(forest_data, aes(x = OR, y = Subgroup, color = Group)) +
-  # 无效参考线
+p <- ggplot(fforest_input, aes(x = OR, y = Subgroup, color = Group)) +
   geom_vline(xintercept = 1, linetype = "dashed", color = "gray40", linewidth = 1) +
-  # 置信区间误差棒
-  geom_errorbarh(aes(xmin = CI_low, xmax = CI_high), 
-                 height = 0.2, linewidth = 1.2) +
-  # OR点估计
+  geom_errorbar(aes(xmin = CI_low, xmax = CI_high), 
+                width = 0.2, 
+                orientation = "y",
+                linewidth = 1.2) +
   geom_point(size = 4) +
-  # 右侧数值文本
-  geom_text(aes(label = label, x = CI_high), 
-            hjust = -0.1, size = 4, show.legend = F) +
-  # 对数坐标轴，自定义刻度
+  geom_text(aes(label = label_text, x = CI_high), 
+            hjust = -0.3, size = 4, show.legend = FALSE) +
   scale_x_log10(breaks = c(0.25, 0.5, 1, 2, 4),
-                labels = c("0.25", "0.5", "1", "2", "4")) +
-  # 分组配色
+                labels = c("0.25", "0.5", "1", "2", "4"),
+                limits = c(0.2, 5.5)) +  # 扩大范围
   scale_color_manual(values = c("steelblue", "#e63946")) +
-  # 标题坐标轴
-  labs(title = "尿镉与桥本甲状腺炎风险的亚组分析",
-       subtitle = "性别：尿镉四分位Q4 vs Q1；年龄：尿镉每IQR增量",
-       x = "比值比 OR (95% 置信区间)", y = NULL,
-       color = "亚组类型") +
-  # 期刊风格主题
+  labs(
+    title = "尿镉与桥本甲状腺炎风险的亚组分析",
+    subtitle = "分层维度：性别、年龄（45岁切点）",
+    x = "比值比 OR (95% 置信区间)", 
+    y = NULL,
+    color = "亚组类型",
+    # 添加交互P值脚注
+    caption = paste0(
+      "交互作用 P 值：年龄×尿镉 = ", format_p(age_interaction_p),
+      "；性别×尿镉 = ", format_p(sex_interaction_p)
+    )
+  ) +
   theme_bw(base_size = 14) +
   theme(
     panel.grid.major.y = element_blank(),
-    plot.title = element_text(hjust = 0.5),    # 标题居中
-    plot.subtitle = element_text(hjust = 0.5),# 副标题居中
-    legend.position = "bottom",                # 图例放底部不遮挡图
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    plot.caption = element_text(hjust = 0.5, size = 10, face = "italic"),  # 脚注样式
+    legend.position = "bottom",
     axis.text.y = element_text(size = 13),
-    plot.margin = margin(10, 60, 10, 10)      # 右侧留白给数值文本
+    plot.margin = margin(10, 50, 20, 10)  
   )
 
-# 展示图
 print(p)
-
-# 导出
 ggsave("forest_subgroup_cd_HT.tiff", p, width = 10, height = 5, dpi = 600)
