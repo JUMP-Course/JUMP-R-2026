@@ -1,27 +1,15 @@
-# ============================================
-# 第一步：数据导入
-# ============================================
+# ============================================================
+# 第一部分：数据导入
+# ============================================================
 
-# 1.1 导入临床数据
-file_path <- "C:/Users/86156/Desktop/paad_tcga_gdc_clinical_data.tsv"
+# ---- 1.1 设置工作目录 ----
+setwd("C:/Users/86156/Desktop/")
 
-paad_raw <- read.delim(
-  file_path,
-  header = TRUE,
-  sep = "\t",
-  stringsAsFactors = FALSE,
-  quote = "",
-  comment.char = "#"
-)
+# ---- 1.2 读取原始数据 ----
+clin_raw <- read.delim("paad_tcga_gdc_clinical_data.tsv")  # 临床数据
+mut_raw  <- read.delim("mutations.txt")                     # 基因突变数据
 
-cat("原始临床数据：", nrow(paad_raw), "行 ×", ncol(paad_raw), "列\n")
-
-# 1.2 导入KRAS突变数据
-mut_file <- "C:/Users/86156/Desktop/mutations.txt"
-mutations <- read.delim(mut_file, 
-                        sep = "\t", 
-                        stringsAsFactors = FALSE,
-                        comment.char = "#")
-
-cat("原始突变数据：", nrow(mutations), "行 ×", ncol(mutations), "列\n")
-
+# ---- 1.3 查看原始数据情况 ----
+cat("原始数据规模：\n")
+cat("  临床数据：", nrow(clin_raw), "行 ×", ncol(clin_raw), "列\n")
+cat("  突变数据：", nrow(mut_raw),  "行 ×", ncol(mut_raw),  "列\n")
