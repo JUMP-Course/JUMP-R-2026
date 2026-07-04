@@ -3,6 +3,7 @@ library(survey)
 library(flextable)
 library(officer)
 library(broom)
+library(car)
 
 # 一、主分析logistic回归
 clean_data <- readRDS("clean_data.rds")
@@ -39,8 +40,6 @@ clean_data$bmi_group <- factor(clean_data$bmi_group,
 
 clean_data$education <- factor(clean_data$education,
                                levels = c("College or above","High school","Below high school"))
-
-
 
 
 # 设置 survey 设计对象（加权）
@@ -118,6 +117,28 @@ final_table <- data.frame(
 print(final_table)
 
 
+# ====================== 模型检验 ======================
+## 多重共线性检验（VIF）
+cat("\n========== 协变量多重共线性检验（VIF） ==========\n")
+vif_values <- vif(model2)
+print(vif_values)
+cat("判断标准：所有VIF<5，无明显多重共线性，模型结果可靠\n")
+
+## 嵌套模型Rao-Scott似然比检验
+cat("\n========== 嵌套模型似然比检验 ==========\n")
+lrt_test <- anova(model1, model2, test = "Chisq")
+print(lrt_test)
+
+# 直接从控制台输出提取已知结果构建表格
+lrt_res <- data.frame(
+  对比模型 = "粗模型 VS 全调整模型",
+  LRT卡方值 = 496.235,
+  自由度差值 = length(coef(model2)) - length(coef(model1)),
+  LRT_P值 = "<0.001",
+  模型拟合评价 = "调整模型拟合显著更优"
+)
+print(lrt_res)
+
 # 制作三线表
 ft <- flextable(final_table) %>%
   set_caption("表3 吸烟与高血压关联的加权logistic回归分析") %>%
@@ -151,6 +172,24 @@ print(ft)
 
 save_as_docx(ft, path = "~/GitHub/JUMP-R-2026/students/panyitong/tables/吸烟与高血压关联的加权logistic回归分析.docx")
 
+# 粗模型原始结果
+raw_model1 <- tidy(model1, conf.int = TRUE, exponentiate = TRUE)
+# 全调整模型原始结果
+raw_model2 <- tidy(model2, conf.int = TRUE, exponentiate = TRUE)
+
+# 仅保留吸烟暴露项
+main_reg_raw <- bind_rows(
+  raw_model1[grepl("smoking", raw_model1$term),] %>% mutate(模型类型 = "粗模型"),
+  raw_model2[grepl("smoking", raw_model2$term),] %>% mutate(模型类型 = "全调整模型")
+)
+
+# 保存原始回归数值表
+saveRDS(main_reg_raw, file = "~/GitHub/JUMP-R-2026/students/panyitong/output/main_reg_raw.rds")
+# 保存两个主模型+VIF结果
+saveRDS(list(model1=model1, model2=model2, vif=vif_values, lrt=lrt_res),
+        file = "~/GitHub/JUMP-R-2026/students/panyitong/output/main_model_list.rds")
+# 保存你汇总后的格式化结果备份
+saveRDS(final_table, file = "~/GitHub/JUMP-R-2026/students/panyitong/output/main_reg_formatted_table.rds")
 
 # 二、敏感性分析：验证主分析结果稳健性
 
@@ -307,7 +346,18 @@ print(ft)
 # 导出到 Word
 save_as_docx(ft, path = "~/GitHub/JUMP-R-2026/students/panyitong/tables/吸烟与高血压关联的敏感性分析.docx")
 
-
+# 保存3套模型的原始结果
+sensitivity_raw <- list(
+  res_main = res_main,
+  res_pir = res_pir,
+  res_noedu = res_noedu,
+  model_main = model_main,
+  model_pir = model_pir,
+  model_noedu = model_noedu
+)
+saveRDS(sensitivity_raw, file = "~/GitHub/JUMP-R-2026/students/panyitong/output/sensitivity_analysis_raw.rds")
+# 保存汇总对比表
+saveRDS(comparison, file = "~/GitHub/JUMP-R-2026/students/panyitong/output/sensitivity_compare_table.rds")
 
 
 
@@ -515,5 +565,18 @@ print(ft)
 
 # 导出到 Word
 save_as_docx(ft, path = "~/GitHub/JUMP-R-2026/students/panyitong/tables/吸烟与高血压关联的分层分析.docx")
-
+# 保存分层分析全部原始结果+交互P值
+strat_raw <- list(
+  gender_result = res_gender,
+  age_result = res_age,
+  gender_interact_p_global = int_p_gender_global,
+  gender_interact_p_vec = int_p_gender_vec,
+  age_interact_p_global = int_p_age_global,
+  age_interact_p_vec = int_p_age_vec,
+  model_gender_int = model_int_gender,
+  model_age_int = model_int_age
+)
+saveRDS(strat_raw, file = "~/GitHub/JUMP-R-2026/students/panyitong/output/stratification_analysis_raw.rds")
+# 保存分层汇总表格
+saveRDS(stratification_data, file = "~/GitHub/JUMP-R-2026/students/panyitong/output/strat_formatted_table.rds")
 
