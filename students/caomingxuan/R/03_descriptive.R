@@ -33,7 +33,7 @@ cat("  女性: ", gender_tab[2], " (", round(gender_prop[2], 1), "%)\n", sep = "
 cat("\n种族分布:\n")
 race_tab <- table(analysis_data$race)
 race_prop <- prop.table(race_tab) * 100
-race_labels <- c("墨西哥裔美国人", "其他西班牙裔", "非西班牙裔白人", "非西班牙裔黑人", "其他")
+race_labels <- c("墨西哥裔美国人", "其他西班牙裔", "非西班牙裔白人", "非西班牙裔黑人", "非西班牙裔亚洲人","其他种族 - 包括多种族")
 for (i in 1:length(race_tab)) {
   cat("  ", race_labels[i], ": ", race_tab[i], " (", round(race_prop[i], 1), "%)\n", sep = "")
 }
@@ -74,7 +74,7 @@ print(bmi_summary)
 cat("\n———————— 各协变量分布 ————————\n")
 cat("性别 (1=男, 2=女):\n")
 print(table(analysis_data$gender))
-cat("\n种族 (1=墨裔, 2=其他西裔, 3=非西裔白人, 4=非西裔黑人, 5=其他):\n")
+cat("\n种族 (1=墨裔, 2=其他西裔, 3=非西裔白人, 4=非西裔黑人, 5=非西裔亚洲人，6=其他种族 - 包括多种族):\n")
 print(table(analysis_data$race))
 cat("\n教育水平 (1=低于9年级, 2=9-11年级, 3=高中, 4=部分大学, 5=大学及以上):\n")
 print(table(analysis_data$education))
