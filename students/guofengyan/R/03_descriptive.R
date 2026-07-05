@@ -90,3 +90,26 @@ cat("N分期：");  print(table(df$N))
 cat("KRAS：");   print(table(df$KRAS))
 cat("性别：");   print(table(df$Sex))
 
+
+# ============================================================
+# 第三部分：数据分析
+# ============================================================
+
+# ---- 3.1 单因素Cox回归----
+uni_vars <- c("Age", "Sex", "N", "KRAS")
+
+cat("\n========== 单因素Cox回归 ==========\n")
+for (v in uni_vars) {
+  cat("\n---", v, "---\n")
+  fit <- coxph(as.formula(paste("Surv(time, status) ~", v)), data = df)
+  print(summary(fit))
+}
+
+# ---- 3.2 多因素Cox回归（校正混杂因素）----
+cat("\n========== 多因素Cox回归 ==========\n")
+multi <- coxph(Surv(time, status) ~ Age + Sex + N + KRAS, data = df)
+print(summary(multi))
+# 提取HR、95%CI、P值
+res <- tidy(multi, exponentiate = TRUE, conf.int = TRUE)
+cat("\nHR (95%CI) & P值：\n")
+print(res[, c("term", "estimate", "conf.low", "conf.high", "p.value")])
