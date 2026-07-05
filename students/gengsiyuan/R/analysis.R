@@ -239,6 +239,8 @@ cat("\n各四分位原始样本人数：\n")
 print(table(svy_design$variables$urine_q))
 cat("\n各四分位加权样本人数：\n")
 print(svytotal(~urine_q, svy_design))
+cat("\n各四分位HT阳性/阴性人数：\n")
+print(table(svy_design$variables$urine_q, svy_design$variables$hashimoto))
 
 # 完全调整模型公式（模型3全部协变量）
 formula_q <- as.formula(
