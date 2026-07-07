@@ -1,4 +1,5 @@
 #描述性统计
+install.packages("kableExtra")
 # ==============================================
 # 1. 加载分析所需的R包
 # 本模块加载本次基线特征分析所需的全部功能包，明确各包的核心用途
@@ -19,7 +20,62 @@ df_raw <- read_excel("C:/Users/86156/Desktop/糖尿病权重.xlsx")
 weight_col <- "wt"
 # 定义全局字符对象，存储结局分组列的列名，用于后续分组统计与组间差异检验
 group_col <- "是否确诊糖尿病" 
+# ========== NHANES 2021-2023 分类变量 数字编码→中文标签批量转换 ==========
+# 1. 性别 RIAGENDR：1=男性，2=女性
+df_valid$性别 <- factor(df_valid$性别, levels = c(1,2), labels = c("男性","女性"))
 
+# 2. 种族分类 RIDRETH1
+# 1:墨西哥裔美国人 2:其他西班牙裔 3:非西班牙裔白人 4:非西班牙裔黑人 5:其他种族
+df_valid$种族分类1 <- factor(df_valid$种族分类1,
+                         levels = c(1,2,3,4,5),
+                         labels = c("墨西哥裔美国人","其他西班牙裔","非西班牙裔白人","非西班牙裔黑人","其他种族"))
+
+# 3. 受教育程度 DMDEDUC2
+# 1:9年级以下 2:9-11年级 3:高中毕业/GED 4:大专 5:本科及以上
+df_valid$受教育程度 <- factor(df_valid$受教育程度,
+                         levels = c(1,2,3,4,5),
+                         labels = c("9年级以下","9-11年级","高中毕业/GED","大专","本科及以上"))
+
+# 4. 婚姻状况 DMDMARTL
+# 1:已婚 2:离婚 3:未婚 
+df_valid$婚姻状况 <- factor(df_valid$婚姻状况,
+                        levels = c(1,2,3),
+                        labels = c("已婚","离婚","未婚"))
+
+# 5. 是否吸烟 SMQ020
+# 1:是 2:否
+df_valid$是否吸烟 <- factor(df_valid$是否吸烟,
+                        levels = c(1,2),
+                        labels = c("是","否"))
+
+# 6. 既往饮酒状态 ALQ101
+# 1:是 2:否
+df_valid$既往饮酒状态 <- factor(df_valid$既往饮酒状态,
+                          levels = c(1,2),
+                          labels = c("是","否"))
+
+
+# 7. 高血压患病史 BPQ020
+# 1:是 2:否
+df_valid$高血压患病史 <- factor(df_valid$高血压患病史,
+                          levels = c(1,2),
+                          labels = c("是","否"))
+
+
+
+# 8.饮食限制情况、饮食相关补充项：1=是，2=否
+df_valid$饮食限制情况 <- factor(df_valid$饮食限制情况, levels = c(1,2), labels = c("是","否"))
+df_valid$饮食相关补充项1 <- factor(df_valid$饮食相关补充项1, levels = c(1,2), labels = c("是","否"))
+df_valid$饮食相关补充项2 <- factor(df_valid$饮食相关补充项2, levels = c(1,2), labels = c("是","否"))
+df_valid$饮食相关补充项3 <- factor(df_valid$饮食相关补充项3, levels = c(1,2), labels = c("是","否"))
+# 构建全局抽样设计对象：独立个体抽样，无聚类，绑定抽样权重
+svy_design <- svydesign(ids = ~1, weights = ~wt, data = df_valid)
+# 拆分非糖尿病组抽样设计对象，用于分组加权描述统计
+svy_nondiab <- subset(svy_design, df_valid[[group_col]] == 2)
+# 拆分糖尿病组抽样设计对象
+svy_diab <- subset(svy_design, df_valid[[group_col]] == 1)
+# 构建复杂抽样调查设计对象，用于后续所有加权统计分析
+svy_design <- svydesign(ids = ~1, weights = ~wt, data = df_valid)
 # ==============================================
 # 3. 定义分类变量、连续变量
 # 本模块明确区分分析变量的类型，分类变量为离散分组指标，连续变量为数值型检测指标，用于后续批量循环分析
@@ -36,10 +92,6 @@ cat_vars <- c(
   "饮食相关补充项1",
   "饮食相关补充项2",
   "饮食相关补充项3",
-  "自评总体健康状况",
-  "近30天饮酒情况",
-  "空腹状态标识",
-  "超敏C反应蛋白分级",
   "是否吸烟"
 )
 
@@ -62,8 +114,6 @@ cont_vars <- c(
   "淋巴细胞绝对值",
   "单核细胞绝对值",
   "中性粒细胞绝对值",
-  "嗜酸性粒细胞绝对值",
-  "嗜碱性粒细胞绝对值",
   "红细胞计数",
   "血红蛋白",
   "红细胞压积",
@@ -72,7 +122,6 @@ cont_vars <- c(
   "红细胞分布宽度",
   "血小板计数",
   "平均血小板体积",
-  "有核红细胞",
   "高密度脂蛋白胆固醇国际单位制",
   "超敏C反应蛋白",
   "每日久坐时长",
