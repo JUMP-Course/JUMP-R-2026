@@ -1,4 +1,5 @@
 #描述性统计
+install.packages("kableExtra")
 # ==============================================
 # 1. 加载分析所需的R包
 # 本模块加载本次基线特征分析所需的全部功能包，明确各包的核心用途
@@ -19,7 +20,62 @@ df_raw <- read_excel("C:/Users/86156/Desktop/糖尿病权重.xlsx")
 weight_col <- "wt"
 # 定义全局字符对象，存储结局分组列的列名，用于后续分组统计与组间差异检验
 group_col <- "是否确诊糖尿病" 
+# ========== NHANES 2021-2023 分类变量 数字编码→中文标签批量转换 ==========
+# 1. 性别 RIAGENDR：1=男性，2=女性
+df_valid$性别 <- factor(df_valid$性别, levels = c(1,2), labels = c("男性","女性"))
 
+# 2. 种族分类 RIDRETH1
+# 1:墨西哥裔美国人 2:其他西班牙裔 3:非西班牙裔白人 4:非西班牙裔黑人 5:其他种族
+df_valid$种族分类1 <- factor(df_valid$种族分类1,
+                         levels = c(1,2,3,4,5),
+                         labels = c("墨西哥裔美国人","其他西班牙裔","非西班牙裔白人","非西班牙裔黑人","其他种族"))
+
+# 3. 受教育程度 DMDEDUC2
+# 1:9年级以下 2:9-11年级 3:高中毕业/GED 4:大专 5:本科及以上
+df_valid$受教育程度 <- factor(df_valid$受教育程度,
+                         levels = c(1,2,3,4,5),
+                         labels = c("9年级以下","9-11年级","高中毕业/GED","大专","本科及以上"))
+
+# 4. 婚姻状况 DMDMARTL
+# 1:已婚 2:离婚 3:未婚 
+df_valid$婚姻状况 <- factor(df_valid$婚姻状况,
+                        levels = c(1,2,3),
+                        labels = c("已婚","离婚","未婚"))
+
+# 5. 是否吸烟 SMQ020
+# 1:是 2:否
+df_valid$是否吸烟 <- factor(df_valid$是否吸烟,
+                        levels = c(1,2),
+                        labels = c("是","否"))
+
+# 6. 既往饮酒状态 ALQ101
+# 1:是 2:否
+df_valid$既往饮酒状态 <- factor(df_valid$既往饮酒状态,
+                          levels = c(1,2),
+                          labels = c("是","否"))
+
+
+# 7. 高血压患病史 BPQ020
+# 1:是 2:否
+df_valid$高血压患病史 <- factor(df_valid$高血压患病史,
+                          levels = c(1,2),
+                          labels = c("是","否"))
+
+
+
+# 8.饮食限制情况、饮食相关补充项：1=是，2=否
+df_valid$饮食限制情况 <- factor(df_valid$饮食限制情况, levels = c(1,2), labels = c("是","否"))
+df_valid$饮食相关补充项1 <- factor(df_valid$饮食相关补充项1, levels = c(1,2), labels = c("是","否"))
+df_valid$饮食相关补充项2 <- factor(df_valid$饮食相关补充项2, levels = c(1,2), labels = c("是","否"))
+df_valid$饮食相关补充项3 <- factor(df_valid$饮食相关补充项3, levels = c(1,2), labels = c("是","否"))
+# 构建全局抽样设计对象：独立个体抽样，无聚类，绑定抽样权重
+svy_design <- svydesign(ids = ~1, weights = ~wt, data = df_valid)
+# 拆分非糖尿病组抽样设计对象，用于分组加权描述统计
+svy_nondiab <- subset(svy_design, df_valid[[group_col]] == 2)
+# 拆分糖尿病组抽样设计对象
+svy_diab <- subset(svy_design, df_valid[[group_col]] == 1)
+# 构建复杂抽样调查设计对象，用于后续所有加权统计分析
+svy_design <- svydesign(ids = ~1, weights = ~wt, data = df_valid)
 # ==============================================
 # 3. 定义分类变量、连续变量
 # 本模块明确区分分析变量的类型，分类变量为离散分组指标，连续变量为数值型检测指标，用于后续批量循环分析
@@ -36,10 +92,6 @@ cat_vars <- c(
   "饮食相关补充项1",
   "饮食相关补充项2",
   "饮食相关补充项3",
-  "自评总体健康状况",
-  "近30天饮酒情况",
-  "空腹状态标识",
-  "超敏C反应蛋白分级",
   "是否吸烟"
 )
 
@@ -62,8 +114,6 @@ cont_vars <- c(
   "淋巴细胞绝对值",
   "单核细胞绝对值",
   "中性粒细胞绝对值",
-  "嗜酸性粒细胞绝对值",
-  "嗜碱性粒细胞绝对值",
   "红细胞计数",
   "血红蛋白",
   "红细胞压积",
@@ -72,7 +122,6 @@ cont_vars <- c(
   "红细胞分布宽度",
   "血小板计数",
   "平均血小板体积",
-  "有核红细胞",
   "高密度脂蛋白胆固醇国际单位制",
   "超敏C反应蛋白",
   "每日久坐时长",
@@ -142,9 +191,33 @@ cat_svy_stat <- function(var_name, svy_obj) {
 # 9. 连续变量的加权描述统计
 # 本模块定义自定义函数，实现连续变量的加权描述统计，先做正态性检验，再选择适配的统计量，符合统计学规范
 # ==============================================
-# 自定义函数：输入连续变量名、加权调查设计对象，正态分布输出"均值±标准差"，非正态分布输出"中位数(四分位数)"
+# 自定义函数：输入连续变量名、分组加权调查对象，正态判定依据全样本整体分布
 cont_svy_stat <- function(var_name, svy_obj) {
-  # 提取调查设计对象中的原始数据框
+  # 提取全样本调查设计对象中的原始数据框
+  dat_full <- svy_design$variables
+  # 提取该连续变量的数值向量
+  x_full_vec <- dat_full[[var_name]]
+  # 提取对应样本的抽样权重向量
+  w_full_vec <- dat_full[[weight_col]]
+  # 筛选出变量值与权重均无缺失的有效样本，避免缺失值导致统计结果异常
+  idx_full <- !is.na(x_full_vec) & !is.na(w_full_vec)
+  x_full_clean <- x_full_vec[idx_full]
+  # 统计全样本有效样本量
+  n_full <- length(x_full_clean)
+  # 全样本有效样本量不足2时，直接返回样本不足提示
+  if (n_full < 2) return("样本不足")
+  
+  # 样本量≤5000时，采用Shapiro-Wilk检验进行正态性检验；大样本下正态性检验意义有限，直接设P值为0
+  if (n_full <= 5000) {
+    shap_p <- shapiro.test(x_full_clean)$p.value
+  } else {
+    shap_p <- 0
+  }
+  # 正态分布判断依据：全样本整体分布
+  full_normal <- shap_p > 0.05
+  
+  # ===================== 提取分组的数据，用于计算描述统计 =====================
+  # 提取传入分组调查设计对象中的原始数据框
   dat_tmp <- svy_obj$variables
   # 提取该连续变量的数值向量
   x_vec <- dat_tmp[[var_name]]
@@ -154,27 +227,23 @@ cont_svy_stat <- function(var_name, svy_obj) {
   idx <- !is.na(x_vec) & !is.na(w_vec)
   x_clean <- x_vec[idx]
   w_clean <- w_vec[idx]
-  # 统计有效样本量
+  # 统计当前分组有效样本量
   n <- length(x_clean)
-  # 有效样本量不足2时，返回样本不足提示，避免统计检验报错
+  # 当前分组有效样本量不足2时，返回样本不足提示，避免统计检验报错
   if (n < 2) return("样本不足")
   
-  # 转化为公式格式，计算该变量的加权均值，适配抽样权重
+  # 转化为公式格式，得到当前分组的全套统计信息的 survey 结果对象
   mean_res <- svymean(as.formula(paste0("~", var_name)), svy_obj, na.rm = TRUE)
+  #提取svymean算出来的加权均值数值,存一个纯数值类型的加权平均值
   w_mean <- coef(mean_res)
-  # 样本量≤5000时，采用Shapiro-Wilk检验进行正态性检验；大样本下正态性检验意义有限，直接设P值为0
-  if (n <= 5000) {
-    shap_p <- shapiro.test(x_clean)$p.value
-  } else {
-    shap_p <- 0
-  }
-  # 正态分布（P>0.05）：计算加权均值±加权标准差
-  if (shap_p > 0.05) {
+  
+  # 正态：统一计算加权均值±加权标准差
+  if (full_normal) {
     # 计算加权标准差，适配抽样权重
     w_sd <- sqrt(sum(w_clean * (x_clean - w_mean)^2) / sum(w_clean))
     # 拼接为"均值±标准差"的规范格式，保留2位小数
     return(paste0(round(w_mean, 2), " ± ", round(w_sd, 2)))
-    # 非正态分布（P≤0.05）：计算加权中位数与四分位数
+    # 非正态：统一计算加权中位数与四分位数
   } else {
     # 计算该变量的加权四分位数（25%、50%、75%分位数）
     q_res <- svyquantile(as.formula(paste0("~", var_name)), svy_obj, c(0.25,0.5,0.75), na.rm=TRUE)
@@ -185,7 +254,6 @@ cont_svy_stat <- function(var_name, svy_obj) {
     return(paste0(round(med,2), " (", round(q1,2), "-", round(q3,2), ")"))
   }
 }
-
 # ==============================================
 # 10. 自定义函数：分类变量组间差异P值
 # 本模块定义自定义函数，计算分类变量两组间差异的P值，根据列联表特征选择适配的统计检验方法，适配抽样权重
