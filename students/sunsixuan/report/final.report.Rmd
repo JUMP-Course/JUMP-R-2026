@@ -1,34 +1,45 @@
 ---
- title: "我国老年人卫生服务利用影响因素及公平性分析"
- author:“sunsixuan”
- date: "2026-07-03"
- output: html_document
- ---
+title: "我国老年人卫生服务利用影响因素及公平性分析"
+author: "sunsixuan"
+date: "2026-07-03"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    self_contained: true
+---
 
-#项目题目：我国老年人卫生服务利用影响因素及公平性分析
+#我国老年人卫生服务利用影响因素及公平性分析
 
-##1.研究背景
-###（1）人口老龄化：《2024年度国家老龄事业发展公报》显示，截至2024年年末，全国60周岁及以上老年人口为31031万人，占总人口的22.0%；全国65周岁及以上老年人口为22023万人，占总人口的15.6%。我国已迈入深度老龄化社会，人口老龄化已成为我国重要的民生与公共卫生议题。我国老年人口对医疗、康复、长期照护等卫生服务的需求正日益增长。
-###（2）区域经济发展水平和人口老龄化程度不同步：研究数据显示2010—2020年，我国乡村人口老龄化增速快于城市，城乡老龄化差异正逐渐缩小。东北地区、黄河中下游地区成为老龄化率快速增长区，东北地区老年人口占比达到24.26%，而这些地区的经济发展水平却较低。
-###（3）卫生资源配置不均：大量优质卫生资源集中于三甲医院，社区卫生服务中心、乡镇卫生院等基层机构医护人员数量不足、专业能力薄弱。
+## 1.研究背景
+### 1.1人口老龄化
+《2024年度国家老龄事业发展公报》显示，截至2024年年末，全国60周岁及以上老年人口为31031万人，占总人口的22.0%；全国65周岁及以上老年人口为22023万人，占总人口的15.6%。我国已迈入深度老龄化社会，人口老龄化已成为我国重要的民生与公共卫生议题。我国老年人口对医疗、康复、长期照护等卫生服务的需求正日益增长。
+### 1.2区域经济发展水平和人口老龄化程度不同步
+研究数据显示2010—2020年，我国乡村人口老龄化增速快于城市，城乡老龄化差异正逐渐缩小。东北地区、黄河中下游地区成为老龄化率快速增长区，东北地区老年人口占比达到24.26%，而这些地区的经济发展水平却较低。
+### 1.3卫生资源配置不均
+大量优质卫生资源集中于三甲医院，社区卫生服务中心、乡镇卫生院等基层机构医护人员数量不足、专业能力薄弱。
 
-##2.研究问题：了解我国老年人卫生服务的实际利用现状；识别导致卫生服务利用差异的关键因素，分析各种因素的作用机制和影响效应；测算卫生服务利用的公平性水平。
+## 2.研究问题
+了解我国老年人卫生服务的实际利用现状；识别导致卫生服务利用差异的关键因素，分析各种因素的作用机制和影响效应；测算卫生服务利用的公平性水平。
 
-##3.数据来源与研究对象：利用北京大学中国健康与养老追踪调查（CHARLS）公开数据集。该数据库以我国45岁及以上中老年人为核心调查对象，系统收集人口学、社会经济、健康状况、卫生服务利用等多维信息，抽样覆盖全国28个省份，样本具有全国代表性。由于疫情限制，本研究拟选取2018年数据库中65岁及以上老年人为研究对象进行数据分析。
-###导入原始数据
+## 3.数据来源与研究对象
+利用北京大学中国健康与养老追踪调查（CHARLS）公开数据集。该数据库以我国45岁及以上中老年人为核心调查对象，系统收集人口学、社会经济、健康状况、卫生服务利用等多维信息，抽样覆盖全国28个省份，样本具有全国代表性。由于疫情限制，本研究拟选取2018年数据库中65岁及以上老年人为研究对象进行数据分析。
+
+### 3.1导入原始数据
 ```{r,echo=FALSE,eval=TRUE,include=FALSE}
 library(haven)
 library(tidyverse)
 library(dplyr)
 charls <- read_dta("C:/Users/Dell/Desktop/整理完的-charls数据/charls.dta")
 ```
-###保留2018年且年龄大于等于65岁的调查对象
+### 3.2保留2018年且年龄大于等于65岁的调查对象
 ```{r}
 df_2018<-subset(charls,iwy==2018&age>=65)
 ```
 
-##4.变量说明：
-###（1）统计研究对象患有的慢性病数量，将研究对象慢性病数量分为0种，1种，2种,3种,4种,5种及以上。
+## 4.变量说明
+### 4.1统计研究对象患有的慢性病数量，将研究对象慢性病数量分为0种，1种，2种,3种,4种,5种及以上。
 ```{r}
 chronic_vars <- c(
   "hibpe",   
@@ -54,7 +65,7 @@ df_2018$chronic_group <- cut(
   right = TRUE 
 )
 ```
-###（2）将研究对象年龄分为65-74岁，75-84岁，85岁及以上三组
+### 4.2将研究对象年龄分为65-74岁，75-84岁，85岁及以上三组
 ```{r}
 df_2018 <- df_2018 %>%
   mutate(
@@ -65,7 +76,7 @@ df_2018 <- df_2018 %>%
     )
   )
 ```
-###（3）将家庭年人均消费按大小排序，并分成五等分组
+### 4.3将家庭年人均消费按大小排序，并分成五等分组
 ```{r}
 df_2018 <- df_2018 %>%
   mutate(
@@ -78,7 +89,7 @@ df_2018 <- df_2018 %>%
     )
   )
 ```
-##5.数据清洗：删除关键自变量、因变量含缺失的样本
+## 5.数据清洗：删除关键自变量、因变量含缺失的样本
 ```{r}
 key_var <- c("doctor","hospital","gender","marry","rural","ins","smoken","age_group","edu","consume_group","srh","chronic_group")
 df_analy <- df_2018 %>% drop_na(all_of(key_var))
@@ -88,8 +99,8 @@ sample <- nrow(df_analy)
 cat("最终有效样本量",sample)
 ```
 
-##6.描述性统计和基线特征表
-###（1）年龄分布
+## 6.描述性统计和基线特征表
+### 6.1年龄分布
 ```{r}
 summary(df_analy$age)
 age_freq <- df_analy %>%
@@ -99,7 +110,7 @@ mutate(
   )
 print(age_freq)
 ```
-###（2）性别分布
+### 6.2性别分布
 ```{r}
 gender_freq <- df_analy %>%
   count(gender, name = "频数") %>%
@@ -108,7 +119,7 @@ gender_freq <- df_analy %>%
   )
 print(gender_freq)
 ```
-###（3）婚姻状况分布
+### 6.3婚姻状况分布
 ```{r}
 marry_freq <- df_analy %>%
   count(marry, name = "频数") %>%
@@ -117,7 +128,7 @@ marry_freq <- df_analy %>%
   )
 print(marry_freq)
 ```
-###（4）城乡居住地分布
+### 6.4城乡居住地分布
 ```{r}
 rural_freq <- df_analy %>%
   count(rural, name = "频数") %>%
@@ -126,7 +137,7 @@ rural_freq <- df_analy %>%
   )
 print(rural_freq)
 ```
-###（5）教育水平分布
+### 6.5教育水平分布
 ```{r}
 df_analy<- df_analy %>%
   mutate(
@@ -144,7 +155,7 @@ df_analy<- df_analy %>%
   )
 print(edu_freq)
 ```
-###（6）医疗保险分布
+### 6.6医疗保险分布
 ```{r}
 ins_freq <- df_analy %>%
   count(ins, name = "频数") %>%
@@ -153,13 +164,13 @@ ins_freq <- df_analy %>%
   )
 print(ins_freq)
 ```
-###（7）家庭年人均消费正态Q-Q图
+### 6.7家庭年人均消费正态Q-Q图
 ```{r}
 qqnorm(df_analy$hhcperc, main = "家庭年人均消费正态Q-Q图")
 qqline(df_analy$hhcperc, col = "red", lwd = 2)
 quantile(df_analy$hhcperc,c(0.25,0.5,0.75))
 ```
-###（8）吸烟史分布
+### 6.8吸烟史分布
 ```{r}
 smoken_freq <- df_analy %>%
   count(smoken, name = "频数") %>%
@@ -168,7 +179,7 @@ smoken_freq <- df_analy %>%
   )
 print(smoken_freq)
 ```
-###（9）慢性病数量分布
+### 6.9慢性病数量分布
 ```{r}
 chronic_freq <- df_analy %>%
   count(chronic_group, name = "频数") %>%
@@ -177,7 +188,7 @@ chronic_freq <- df_analy %>%
   )
 print(chronic_freq)
 ```
-###（10）自评健康状况分布
+### 6.10自评健康状况分布
 ```{r}
 df_analy<- df_analy %>%
   mutate(
@@ -198,7 +209,7 @@ srh_freq<- df_analy %>%
   )
 print(srh_freq)
 ```
-###（11）卫生服务利用情况
+### 6.11卫生服务利用情况
 ```{r}
 doctor_rate <- df_analy %>%
   count(doctor, name = "例数") %>%
@@ -209,7 +220,7 @@ hospital_rate <- df_analy %>%
   mutate(百分比 = round(例数 / sum(例数) * 100, 2))
 print(hospital_rate)
 ```
-###（12）导出基线特征表
+### 6.12导出基线特征表
 ```{r,echo=FALSE,eval=TRUE,include=FALSE}
 library(gtsummary)
 library(flextable)
@@ -241,12 +252,12 @@ table_baseline%>%
   save_as_docx(path = "总体基线特征表.docx")
 ```
 
-##7.数据可视化分组
+## 7.数据可视化分组
 ```{r}
 library(ggplot2)
 library(tidyr)
 ```
-###（1）按年龄分组与卫生服务利用率分组
+### 7.1按年龄分组与卫生服务利用率分组
 ```{r}
 doctor_age <- df_analy %>%
   count(age_group, doctor, name = "例数") %>%
@@ -273,7 +284,7 @@ ggplot(rate_age, aes(x = age_group, y = 百分比, color = service, group = serv
        title = "不同年龄组卫生服务利用率") 
 ```
 
-###（2）按家庭年人均消费与卫生服务利用率分组
+### 7.2按家庭年人均消费与卫生服务利用率分组
 ```{r}
 income_doctor <- df_analy %>%
   count(consume_group, doctor, name = "例数") %>%
@@ -307,7 +318,7 @@ ggplot(income_plot, aes(x = factor(consume_group), y = 利用率)) +
   )
 ```
 
-###（3）按慢性病数量与卫生服务利用率分组
+### 7.3按慢性病数量与卫生服务利用率分组
 ```{r}
 chronic_doctor <- df_analy %>%
   count(chronic_group, doctor, name = "例数") %>%
@@ -342,7 +353,7 @@ ggplot(chronic_plot, aes(x = factor(chronic_group), y = 利用率)) +
   theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
 ```
 
-###（4）按性别与卫生服务利用率分组
+### 7.4按性别与卫生服务利用率分组
 ```{r}
 gender_doctor <- df_analy %>%
   count(gender, doctor, name = "例数") %>%
@@ -376,7 +387,7 @@ ggplot(gender_plot, aes(x = gender, y = 利用率, fill = service)) +
   theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
 ```
 
-###（5）按城乡居住地与卫生服务利用率分组
+### 7.5按城乡居住地与卫生服务利用率分组
 ```{r}
 urban_doctor <- df_analy %>%
 count(rural, doctor, name = "例数") %>%
@@ -410,9 +421,9 @@ ggplot(urban_plot, aes(x = rural, y = 利用率, fill = service)) +
   theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
 ```
 
-##8.统计分析结果
-###（1）单因素分析
-###1)年龄组与门诊率、住院率的卡方检验
+## 8.统计分析结果
+### 8.1单因素分析
+#### 8.1.1年龄组与门诊率、住院率的卡方检验
 ```{r}
 tab <- table(df_analy$age_group, df_analy$doctor)
 tab
@@ -431,7 +442,7 @@ exp(coef(fit_single))          # OR值
 exp(confint(fit_single))       # 95%置信区间
 summary(fit_single)            # P值
 ```
-###2)受教育水平与门诊率、住院率的卡方检验和线性趋势检验
+#### 8.1.2受教育水平与门诊率、住院率的卡方检验和线性趋势检验
 ```{r,include=FALSE}
 library(DescTools)
 ```
@@ -489,7 +500,7 @@ summary(fit_trend_edu_hosp)
 exp(coef(fit_trend_edu_hosp))
 exp(confint(fit_trend_edu_hosp))
 ```
-###3)家庭年人均消费与门诊率、住院率的卡方检验和线性趋势检验
+#### 8.1.3家庭年人均消费与门诊率、住院率的卡方检验和线性趋势检验
 ```{r}
 consume_order <- c("前20%", "20%-40%", "40%-60%", "60%-80%", "后20%")
 df_analy$consume_fac <- factor(df_analy$consume_group, levels = consume_order)
@@ -544,7 +555,7 @@ summary(fit_trend_consume_hosp)
 exp(coef(fit_trend_consume_hosp))
 exp(confint(fit_trend_consume_hosp))
 ```
-###4)自评健康状况与门诊率、住院率的卡方检验与线性趋势检验
+#### 8.1.4自评健康状况与门诊率、住院率的卡方检验与线性趋势检验
 ```{r}
 srh_order <- c("很差", "较差", "一般", "较好", "很好")
 df_analy$srh_fac <- factor(df_analy$srh_label, levels = srh_order)
@@ -599,7 +610,7 @@ summary(fit_trend_srh_hosp)
 exp(coef(fit_trend_srh_hosp))
 exp(confint(fit_trend_srh_hosp))
 ```
-###5)慢性病数量与门诊率、住院率的卡方检验与线性趋势检验
+#### 8.1.5慢性病数量与门诊率、住院率的卡方检验与线性趋势检验
 ```{r}
 chronic_group_order <- c("0种","1种" ,"2种", "3种", "4种", "5种及以上")
 df_analy$chronic_group_fac <- factor(df_analy$chronic_group, levels = chronic_group_order)
@@ -654,7 +665,7 @@ summary(fit_trend_chronic_group_hosp)
 exp(coef(fit_trend_chronic_group_hosp))
 exp(confint(fit_trend_chronic_group_hosp))
 ```
-###6)医疗保险与门诊率、住院率的卡方检验
+#### 8.1.6医疗保险与门诊率、住院率的卡方检验
 ```{r}
 tab_ins <- table(df_analy$ins, df_analy$doctor)
 tab_ins
@@ -675,7 +686,7 @@ exp(coef(fit_single_ins_hosp))          # OR值
 exp(confint(fit_single_ins_hosp))       # 95%置信区间
 summary(fit_single_ins_hosp)            # P值
 ```
-###7)居住地与门诊率、住院率的卡方检验
+#### 8.1.7居住地与门诊率、住院率的卡方检验
 ```{r}
 tab_rural <- table(df_analy$rural, df_analy$doctor)
 tab_rural
@@ -696,7 +707,7 @@ exp(coef(fit_single_rural_hosp))          # OR值
 exp(confint(fit_single_rural_hosp))       # 95%置信区间
 summary(fit_single_rural_hosp)            # P值
 ```
-###8)性别与门诊率、住院率的卡方检验
+#### 8.1.8性别与门诊率、住院率的卡方检验
 ```{r}
 tab_gender <- table(df_analy$gender, df_analy$doctor)
 tab_gender
@@ -717,7 +728,7 @@ exp(coef(fit_single_gender_hosp))          # OR值
 exp(confint(fit_single_gender_hosp))       # 95%置信区间
 summary(fit_single_gender_hosp)            # P值
 ```
-###9)婚姻状况与门诊率、住院率的卡方检验
+#### 8.1.9婚姻状况与门诊率、住院率的卡方检验
 ```{r}
 tab_marry <- table(df_analy$marry, df_analy$doctor)
 tab_marry
@@ -738,7 +749,7 @@ exp(coef(fit_single_marry_hosp))          # OR值
 exp(confint(fit_single_marry_hosp))       # 95%置信区间
 summary(fit_single_marry_hosp)            # P值
 ```
-###10)婚姻状况与门诊率、住院率的卡方检验
+#### 8.1.10婚姻状况与门诊率、住院率的卡方检验
 ```{r}
 tab_marry <- table(df_analy$marry, df_analy$doctor)
 tab_marry
@@ -759,8 +770,8 @@ exp(coef(fit_single_marry_hosp))          # OR值
 exp(confint(fit_single_marry_hosp))       # 95%置信区间
 summary(fit_single_marry_hosp)            # P值
 ```
-###（2）多重共线性检验
-###1)门诊率的多重共线性检验
+### 8.2多重共线性检验
+#### 8.2.1门诊率的多重共线性检验
 ```{r,echo=FALSE,eval=TRUE,include=FALSE}
 library(car)
 ```
@@ -772,7 +783,7 @@ fit_test <- glm(
 )
 vif(fit_test)
 ```
-###2)住院率的多重共线性检验
+#### 8.2.2住院率的多重共线性检验
 ```{r}
 fit_test_hosp <- glm(
   hospital ~ chronic_group_score + srh_score + age_group + gender + marry + ins + consume_score +smoken + rural,
@@ -781,8 +792,8 @@ fit_test_hosp <- glm(
 )
 vif(fit_test_hosp)
 ```
-###（3）多因素Logistic回归分析
-###1)门诊率的回归
+### 8.3多因素Logistic回归分析
+#### 8.3.1门诊率的回归
 ```{r}
 fit_doc <- glm(
   doctor ~ chronic_group_score + srh_score + age_group + gender + edu_score + ins + consume_score +smoken,
@@ -793,7 +804,7 @@ exp(coef(fit_doc))
 exp(confint(fit_doc))
 summary(fit_doc)
 ```
-###2)住院率的回归
+#### 8.3.2住院率的回归
 ```{r}
 fit_hosp <- glm(
   hospital ~ chronic_group_score + srh_score + age_group + gender + marry + ins + consume_score +smoken + rural,
@@ -804,7 +815,7 @@ exp(coef(fit_hosp))
 exp(confint(fit_hosp))
 summary(fit_hosp)
 ```
-###（4）拟合优度检验
+### 8.4拟合优度检验
 ```{r,echo=FALSE,eval=TRUE,include=FALSE}
 library(ResourceSelection)
 ```
@@ -812,8 +823,8 @@ library(ResourceSelection)
 hoslem.test(fit_doc$y, fitted(fit_doc))
 hoslem.test(fit_hosp$y, fitted(fit_hosp))
 ```
-###（5）城乡分层分析
-###1)不同城乡居住地门诊分层分析
+### 8.5城乡分层分析
+#### 8.5.1不同城乡居住地门诊分层分析
 ```{r}
 fit_doc_rural <- glm(doctor ~ chronic_group_score + srh_score + age_group + gender + edu_score + ins + consume_score +smoken,
                      data = subset(df_analy, rural == 1),
@@ -824,7 +835,7 @@ fit_doc_urban <- glm(doctor ~ chronic_group_score + srh_score + age_group + gend
 exp(cbind(OR = coef(fit_doc_rural), confint(fit_doc_rural)))
 exp(cbind(OR = coef(fit_doc_urban), confint(fit_doc_urban)))
 ```
-###2)不同城乡居住地住院分层分析
+#### 8.5.2不同城乡居住地住院分层分析
 ```{r}
 fit_hosp_rural <- glm(hospital ~ chronic_group_score + srh_score + age_group + gender + marry + ins + consume_score +smoken,
                      data = subset(df_analy, rural == 1),
@@ -835,8 +846,8 @@ fit_hosp_urban <- glm(hospital ~ chronic_group_score + srh_score + age_group + g
 exp(cbind(OR = coef(fit_hosp_rural), confint(fit_hosp_rural)))
 exp(cbind(OR = coef(fit_hosp_urban), confint(fit_hosp_urban)))
 ```
-###（6）年龄组分层分析
-###1)不同年龄组门诊分层分析
+### 8.6年龄组分层分析
+#### 8.6.1不同年龄组门诊分层分析
 ```{r}
 fit_doc_young <- glm(doctor ~ chronic_group_score + srh_score  + gender + edu_score + ins + consume_score +smoken,
                       data = subset(df_analy, age_group == "65-74岁"),
@@ -851,7 +862,7 @@ exp(cbind(OR=coef(fit_doc_young), confint(fit_doc_young)))
 exp(cbind(OR=coef(fit_doc_mid), confint(fit_doc_mid)))
 exp(cbind(OR=coef(fit_doc_old), confint(fit_doc_old)))
 ```
-###2)不同年龄组住院分层分析
+#### 8.6.2不同年龄组住院分层分析
 ```{r}
 fit_hosp_young <- glm(hospital ~ chronic_group_score + srh_score + gender + marry + ins + consume_score +smoken + rural,
                      data = subset(df_analy, age_group == "65-74岁"),
@@ -866,12 +877,12 @@ exp(cbind(OR=coef(fit_hosp_young), confint(fit_hosp_young)))
 exp(cbind(OR=coef(fit_hosp_mid), confint(fit_hosp_mid)))
 exp(cbind(OR=coef(fit_hosp_old), confint(fit_hosp_old)))
 ```
-###（7）公平性分析（集中指数、校正集中指数、集中曲线图）
+### 8.7公平性分析（集中指数、校正集中指数、集中曲线图）
 ```{r,echo=FALSE,eval=TRUE,include=FALSE}
 library(rineq)
 library(dplyr)
 ```
-###1)门诊集中指数
+#### 8.7.1门诊集中指数
 ```{r}
 df_analy$doctor_num <- as.numeric(df_analy$doctor) - 1
 ci_doc1<-ci(
@@ -881,13 +892,13 @@ ci_doc1<-ci(
 )
 summary(ci_doc1)
 ```
-###2)门诊"Erreygers"校正集中指数
+#### 8.7.2门诊"Erreygers"校正集中指数
 ```{r}
 y_bar <- mean(df_analy$doctor_num)
 E_ci <- (4 * y_bar / (1 - y_bar)) * 0.09445796
 E_ci
 ```
-###3)门诊集中曲线图
+#### 8.7.3门诊集中曲线图
 ```{r}
 df_sort <- df_analy[order(df_analy$hhcperc), ]
 df_sort$cum_pop <- seq(1:nrow(df_sort)) / nrow(df_sort)
@@ -907,7 +918,7 @@ ggplot() +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 ```
-###4)住院集中指数
+#### 8.7.4住院集中指数
 ```{r}
 df_analy$hospital_num <- as.numeric(df_analy$hospital) - 1
 ci_hosp1<-ci(
@@ -917,13 +928,13 @@ ci_hosp1<-ci(
 )
 summary(ci_hosp1)
 ```
-###5)住院"Erreygers"校正指数
+#### 8.7.5住院"Erreygers"校正指数
 ```{r}
 y_bar <- mean(df_analy$hospital_num)
 E_ci <- (4 * y_bar / (1 - y_bar)) * 0.09349178
 E_ci
 ```
-###6)住院集中曲线图
+#### 8.7.6住院集中曲线图
 ```{r}
 df_sort <- df_analy[order(df_analy$hhcperc), ]
 df_sort$cum_pop <- seq(1:nrow(df_sort)) / nrow(df_sort)
@@ -944,13 +955,25 @@ ggplot() +
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-##9.结果解释
-###（1）门诊率多因素回归结果显示：在控制年龄、性别、文化程度、婚姻状况、城乡居住地、吸烟史、医疗保险等混杂变量后：慢性病患病数量每增加1个等级，老年人门诊就诊风险上升25.09%（OR=1.2509，95%CI：1.1909-1.3141，P＜0.001）；自评健康状况每提升1个等级，门诊就诊风险下降26.81%（OR=0.7319，95%CI：0.6738-0.7951，P＜0.001）；家庭消费水平越高，门诊就医概率越高（OR=1.1133，P=0.001）；其余人口学变量、医保与吸烟史对门诊就诊率无统计学影响（P均＞0.05）。
-###（2）住院率的多因素回归结果显示：调整所有混杂因素后:年龄越高，住院概率显著上升；与65-74岁组相比，85岁及以上老年人住院风险升高108.81%（OR=2.0881，P=0.001）；女性住院风险高于男性（OR=1.3915，P＜0.001）；有医疗保险者住院风险显著更高（OR=3.4476，P＜0.001）；家庭消费水平越高，住院率越高（OR=1.1219,P<0.001）；慢性病数量每增加1级，住院就诊风险上升34.09%（OR=1.3409，95%CI：1.2806-1.4040，P＜0.001）；自评健康状况越好，住院概率越低（OR=0.6550，P＜0.001）；相比于抽烟者，无吸烟史的老年人住院率显著更低（OR=0.6287,P<0.001）；婚姻、城乡居住地对住院率无统计学意义（P＞0.05）。
-###（3）不同城乡居住地分层分析：门诊服务利用分层分析结果显示，慢性病负担与自评健康状况对城乡老年人门诊就医行为均存在显著影响。医疗保险仅在农村人群中显著提升门诊服务利用（OR=2.010，95%CI：1.151-3.798），在城镇人群中效应不显著。住院服务利用分层分析显示，慢性病负担、自评健康、高龄、医疗保险对城乡老年人住院就医均存在显著影响。研究结论表明，慢性病数量越多、自评健康状况越差城乡老年人门诊和住院两类就医概率均显著上升；医疗保险仅显著提升农村老年人门诊利用率，对城镇老年人无作用，但医保显著提升城乡老年人住院概率。
-###（4）不同年龄组分层分析：将研究人群划分为65-74岁、75-84岁、85岁及以上三组进行分层分析。在门诊服务利用方面，65-74岁、75-84岁群体门诊就诊的驱动因素均为健康状况与经济水平：慢性病负担越重，门诊利用概率越高；自评健康得分越高，门诊就诊概率越低；家庭消费得分越高，门诊就医可能性越大。性别、教育水平、医保参保与吸烟行为门诊服务利用无显著作用（P>0.05）。在85岁及以上老年人群中，仅经济消费水平稳定影响门诊就医行为：消费得分每升高1个单位，门诊就诊风险上升55.3%（OR=1.553，95%CI：1.119-2.201）。慢性病、自评健康、人口社会学特征、医保及吸烟等变量均未达到统计学显著性（P>0.05）。在住院服务利用方面，慢性病数量显著提升各年龄组老年人住院率，但作用强度随年龄升高逐步下降；自评健康状况仅在65-84岁组显著降低住院风险，85岁以上高龄人群中无统计学意义；65-84岁组女性住院风险高于男性，85岁以上组性别差异消失；婚姻状况仅对85岁及以上老年人存在显著正向作用，有配偶的老年人住院率更高；经济水平、城乡居住地仅影响65~74岁低龄老年人；医保、吸烟在全年龄段均与住院率显著相关。综上，低龄老年人住院就医受慢性病、主观健康、经济与城乡资源共同约束；超高龄老人住院行为更多取决于婚姻照护、疾病客观状况与医疗保障。
-###（5）公平性分析：以家庭人均消费作为社会经济分层指标，采用集中指数与集中曲线评价老年人门诊、住院卫生服务利用的经济公平性。结果显示，门诊服务原始集中指数CI=0.0945，Erreygers校正指数ECI=0.0782；住院服务原始集中指数CI=0.0935，校正指数ECI=0.1091，两类服务集中指数均为正值，且集中曲线均落在45°绝对公平对角线下方，提示老年人门诊、住院服务利用均存在向高收入群体倾斜的经济不公平特征。对比门诊与住院结果可见，住院服务校正集中指数更高，集中曲线偏离公平线距离更远，说明住院服务利用的经济不公平程度高于门诊服务，高收入老年人相较于低收入群体，住院服务利用优势更突出。
+## 9.结果解释
+### 9.1门诊率多因素回归
+结果显示：在控制年龄、性别、文化程度、婚姻状况、城乡居住地、吸烟史、医疗保险等混杂变量后：慢性病患病数量每增加1个等级，老年人门诊就诊风险上升25.09%（OR=1.2509，95%CI：1.1909-1.3141，P＜0.001）；自评健康状况每提升1个等级，门诊就诊风险下降26.81%（OR=0.7319，95%CI：0.6738-0.7951，P＜0.001）；家庭消费水平越高，门诊就医概率越高（OR=1.1133，P=0.001）；其余人口学变量、医保与吸烟史对门诊就诊率无统计学影响（P均＞0.05）。
 
-##10.局限性：研究数据库选用2018年调查数据，为横断面研究且时效性有限，难以推断因果关系；公平性分析中仅采用集中指数进行测算，无法量化各指标对卫生服务利用不公平的贡献程度。
+### 9.2住院率的多因素回归
+结果显示：调整所有混杂因素后:年龄越高，住院概率显著上升；与65-74岁组相比，85岁及以上老年人住院风险升高108.81%（OR=2.0881，P=0.001）；女性住院风险高于男性（OR=1.3915，P＜0.001）；有医疗保险者住院风险显著更高（OR=3.4476，P＜0.001）；家庭消费水平越高，住院率越高（OR=1.1219,P<0.001）；慢性病数量每增加1级，住院就诊风险上升34.09%（OR=1.3409，95%CI：1.2806-1.4040，P＜0.001）；自评健康状况越好，住院概率越低（OR=0.6550，P＜0.001）；相比于抽烟者，无吸烟史的老年人住院率显著更低（OR=0.6287,P<0.001）；婚姻、城乡居住地对住院率无统计学意义（P＞0.05）。
 
-##11.个人总结：本次研究基于CHARLS数据库，采用Logistic回归、分层分析与集中指数法，分析门诊、住院服务利用的影响因素与经济公平特征。实操中，我独立完成数据清洗、分层建模、公平指数计算与集中曲线绘制等，掌握了基础的R语言的代码编写与rmarkdown的报告输出，锻炼了我的实证输出能力。
+### 9.3不同城乡居住地分层分析
+门诊服务利用分层分析结果显示，慢性病负担与自评健康状况对城乡老年人门诊就医行为均存在显著影响。医疗保险仅在农村人群中显著提升门诊服务利用（OR=2.010，95%CI：1.151-3.798），在城镇人群中效应不显著。住院服务利用分层分析显示，慢性病负担、自评健康、高龄、医疗保险对城乡老年人住院就医均存在显著影响。研究结论表明，慢性病数量越多、自评健康状况越差城乡老年人门诊和住院两类就医概率均显著上升；医疗保险仅显著提升农村老年人门诊利用率，对城镇老年人无作用，但医保显著提升城乡老年人住院概率。
+
+### 9.4不同年龄组分层分析
+将研究人群划分为65-74岁、75-84岁、85岁及以上三组进行分层分析。在门诊服务利用方面，65-74岁、75-84岁群体门诊就诊的驱动因素均为健康状况与经济水平：慢性病负担越重，门诊利用概率越高；自评健康得分越高，门诊就诊概率越低；家庭消费得分越高，门诊就医可能性越大。性别、教育水平、医保参保与吸烟行为门诊服务利用无显著作用（P>0.05）。在85岁及以上老年人群中，仅经济消费水平稳定影响门诊就医行为：消费得分每升高1个单位，门诊就诊风险上升55.3%（OR=1.553，95%CI：1.119-2.201）。慢性病、自评健康、人口社会学特征、医保及吸烟等变量均未达到统计学显著性（P>0.05）。在住院服务利用方面，慢性病数量显著提升各年龄组老年人住院率，但作用强度随年龄升高逐步下降；自评健康状况仅在65-84岁组显著降低住院风险，85岁以上高龄人群中无统计学意义；65-84岁组女性住院风险高于男性，85岁以上组性别差异消失；婚姻状况仅对85岁及以上老年人存在显著正向作用，有配偶的老年人住院率更高；经济水平、城乡居住地仅影响65~74岁低龄老年人；医保、吸烟在全年龄段均与住院率显著相关。综上，低龄老年人住院就医受慢性病、主观健康、经济与城乡资源共同约束；超高龄老人住院行为更多取决于婚姻照护、疾病客观状况与医疗保障。
+
+### 9.5公平性分析
+以家庭人均消费作为社会经济分层指标，采用集中指数与集中曲线评价老年人门诊、住院卫生服务利用的经济公平性。结果显示，门诊服务原始集中指数CI=0.0945，Erreygers校正指数ECI=0.0782；住院服务原始集中指数CI=0.0935，校正指数ECI=0.1091，两类服务集中指数均为正值，且集中曲线均落在45°绝对公平对角线下方，提示老年人门诊、住院服务利用均存在向高收入群体倾斜的经济不公平特征。对比门诊与住院结果可见，住院服务校正集中指数更高，集中曲线偏离公平线距离更远，说明住院服务利用的经济不公平程度高于门诊服务，高收入老年人相较于低收入群体，住院服务利用优势更突出。
+
+## 10.局限性
+研究数据库选用2018年调查数据，为横断面研究且时效性有限，难以推断因果关系；公平性分析中仅采用集中指数进行测算，无法量化各指标对卫生服务利用不公平的贡献程度。
+
+## 11.个人总结
+本次研究基于CHARLS数据库，采用Logistic回归、分层分析与集中指数法，分析门诊、住院服务利用的影响因素与经济公平特征。实操中，我独立完成数据清洗、分层建模、公平指数计算与集中曲线绘制等，掌握了基础的R语言的代码编写与rmarkdown的报告输出，锻炼了我的实证输出能力。
+
