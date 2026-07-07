@@ -1,6 +1,8 @@
 
 #单因素、多因素分析
 # ===================== 第一步：安装并加载所需R包 =====================
+#单因素、多因素分析
+# ===================== 第一步：安装并加载所需R包 =====================
 # 首次运行取消下面注释安装所有依赖包，后续运行可注释该行
 # install.packages(c("readxl","survey","dplyr","writexl","forestploter","grid","ggplot2","car"))
 # readxl：用于读取.xlsx格式的Excel文件
@@ -36,8 +38,8 @@ weight_col <- "wt"
 cat_vars <- c(
   "性别","种族分类1","受教育程度","婚姻状况","既往饮酒状态",
   "高血压患病史","饮食限制情况","饮食相关补充项1","饮食相关补充项2",
-  "饮食相关补充项3","自评总体健康状况","近30天饮酒情况","空腹状态标识",
-  "超敏C反应蛋白分级","是否吸烟"
+  "饮食相关补充项3","近30天饮酒情况",
+  "是否吸烟"
 )
 
 # 构建字符向量存储所有连续自变量名称，包含人体测量学指标、血常规、血脂、炎症指标、行为时长等连续性检测变量
@@ -45,8 +47,7 @@ cont_vars <- c(
   "年龄岁","家庭收入贫困比值","体质指数BMI","上臂围cm","腰围cm","臀围cm",
   "收缩压","舒张压","白细胞计数","淋巴细胞百分比","单核细胞百分比",
   "中性粒细胞百分比","嗜酸性粒细胞百分比","嗜碱性粒细胞百分比",
-  "淋巴细胞绝对值","单核细胞绝对值","中性粒细胞绝对值","嗜酸性粒细胞绝对值",
-  "嗜碱性粒细胞绝对值","红细胞计数","血红蛋白","红细胞压积","平均红细胞体积",
+  "淋巴细胞绝对值","单核细胞绝对值","中性粒细胞绝对值","红细胞计数","血红蛋白","红细胞压积","平均红细胞体积",
   "平均红细胞血红蛋白含量","红细胞分布宽度","血小板计数","平均血小板体积",
   "有核红细胞","高密度脂蛋白胆固醇国际单位制","超敏C反应蛋白","每日久坐时长",
   "总胆固醇国际单位制","甘油三酯国际单位制","低密度脂蛋白胆固醇国际单位制",
@@ -323,8 +324,6 @@ cont_vars <- c(
   "淋巴细胞绝对值",
   "单核细胞绝对值",
   "中性粒细胞绝对值",
-  "嗜酸性粒细胞绝对值",
-  "嗜碱性粒细胞绝对值",
   "红细胞计数",
   "血红蛋白",
   "红细胞压积",
@@ -356,10 +355,6 @@ cat_vars <- c(
   "饮食相关补充项1",
   "饮食相关补充项2",
   "饮食相关补充项3",
-  "自评总体健康状况",
-  "近30天饮酒情况",
-  "空腹状态标识",
-  "超敏C反应蛋白分级",
   "是否吸烟"
 )
 
@@ -434,205 +429,4 @@ cat("显著性说明：*** P<0.001；** P<0.01；* P<0.05\n")
 print(res_weight, row.names = FALSE)
 
 # 将回归分析结果表格导出为Excel格式文件并保存至指定路径
-write_xlsx(res_weight, "C:/Users/86156/Desktop/1_99缩尾_加权敏感性分析结果.xlsx")
-
-# 剔除模型截距项对应的结果行，仅保留自变量效应估计结果
-dt <- res_weight[res_weight$变量 != "(Intercept)", ]
-
-# 拼接比值比与置信区间为标准化文本格式
-# 生成空白字符列用于置信区间线条布局占位
-dt$`OR(95%CI)` <- paste0(dt$OR, "(", dt$下限95CI, "-", dt$上限95CI, ")")
-dt$CI <- paste(rep(" ", 30), collapse = "")
-
-# 筛选绘图所需字段，构建森林图基础数据表
-dt_forest <- dt[, c("变量", "OR(95%CI)", "CI", "P值")]
-
-# 自定义森林图主题参数配置
-# 设置置信区间线条颜色
-# 设置置信区间填充色块颜色
-# 设置无效效应参考线颜色
-# 设置参考线线型为虚线
-# 设置参考线线条粗细
-# 设置置信区间端点样式为封闭式箭头
-# 设置坐标轴字体大小
-# 设置表格文字字体大小
-tm <- forest_theme(
-  ci_col = "#453781",
-  fill_ci_col = "#8E82FE",
-  refline_gp = gpar(col = "red", lwd = 1, lty = 2),
-  arrow_type = "closed",
-  xaxis_gp = gpar(fontsize = 8),
-  table_gp = gpar(fontsize = 9)
-)
-
-# 基于配置数据表与主题参数绘制森林图
-# 指定置信区间绘图所在列序号
-# 传入比值比数值作为效应点坐标
-# 传入置信区间上下限数值
-# 设置无效效应参考线横坐标位置
-# 设定横轴数值显示范围
-# 定义横轴刻度节点位置
-# 设置横轴坐标轴名称
-# 绑定预设绘图主题参数
-p <- forest(
-  data = dt_forest,
-  ci_column = 3,
-  est = dt$OR,
-  lower = dt$下限95CI,
-  upper = dt$上限95CI,
-  ref_line = 1,
-  xlim = c(0, 10),
-  ticks_at = c(0, 1, 2, 5, 10),
-  xlab = "Odds Ratio (95% CI)",
-  theme = tm
-)
-
-# 在绘图窗口预览生成的森林图
-print(p)
-
-# 将森林图保存为TIFF格式高清图片
-# 设定图片宽度、高度与分辨率参数
-ggsave("C:/Users/86156/Desktop/1_99缩尾_加权敏感性分析_森林图.tiff",
-       p, width = 12, height = 10, dpi = 600)
-# 加载分析所需R包
-# readxl用于读取Excel格式数据集
-# survey用于构建复杂抽样设计并实现加权广义线性模型拟合
-# dplyr用于数据整理、变量新增与结果格式化处理
-# car用于多重共线性诊断相关统计函数调用
-library(readxl)
-library(survey)
-library(dplyr)
-library(car)
-
-# 读取指定路径下的Excel原始数据集
-df <- read_excel("C:/Users/86156/Desktop/糖尿病权重.xlsx")
-# 构建二分类结局变量
-# 原始数据取值1代表确诊糖尿病，赋值为1；其余取值统一赋值为0代表未确诊糖尿病
-df$y <- ifelse(df$`是否确诊糖尿病` == 1, 1, 0)
-# 定义字符变量存储抽样权重列名，便于后续统一调用修改
-weight_col <- "wt"
-
-# 构建字符向量存储全部分类自变量名称
-cat_vars <- c(
-  "性别","种族分类1","受教育程度","婚姻状况","既往饮酒状态",
-  "高血压患病史","饮食限制情况","饮食相关补充项1","饮食相关补充项2",
-  "饮食相关补充项3","自评总体健康状况","近30天饮酒情况","空腹状态标识",
-  "超敏C反应蛋白分级","是否吸烟"
-)
-
-# 构建字符向量存储全部连续自变量名称
-cont_vars <- c(
-  "年龄岁","家庭收入贫困比值","体质指数BMI","上臂围cm","腰围cm","臀围cm",
-  "收缩压","舒张压","白细胞计数","淋巴细胞百分比","单核细胞百分比",
-  "中性粒细胞百分比","嗜酸性粒细胞百分比","嗜碱性粒细胞百分比",
-  "淋巴细胞绝对值","单核细胞绝对值","中性粒细胞绝对值","嗜酸性粒细胞绝对值",
-  "嗜碱性粒细胞绝对值","红细胞计数","血红蛋白","红细胞压积","平均红细胞体积",
-  "平均红细胞血红蛋白含量","红细胞分布宽度","血小板计数","平均血小板体积",
-  "有核红细胞","高密度脂蛋白胆固醇国际单位制","超敏C反应蛋白","每日久坐时长",
-  "总胆固醇国际单位制","甘油三酯国际单位制","低密度脂蛋白胆固醇国际单位制",
-  "计算法低密度脂蛋白胆固醇国际单位制","非高密度脂蛋白胆固醇国际单位制"
-)
-# 合并分类变量与连续变量向量，得到全部自变量集合
-all_vars <- c(cat_vars, cont_vars)
-
-# 循环遍历所有分类变量
-# 将变量数据格式转换为因子类型，回归模型会自动将首个水平设为参照组
-for (v in cat_vars) {
-  df[[v]] <- factor(df[[v]])
-}
-
-# 筛选有效分析样本
-# 保留抽样权重与结局变量均不存在缺失值的观测记录
-df_valid <- df[!is.na(df[[weight_col]]) & !is.na(df$y), ]
-
-# 按照性别变量完成研究人群亚组拆分
-# 筛选性别编码为1的观测，构建男性亚组数据集
-df_male   <- subset(df_valid, 性别 == "1")
-# 筛选性别编码为2的观测，构建女性亚组数据集
-df_female <- subset(df_valid, 性别 == "2")
-
-# 基于男性亚组数据集构建抽样调查设计对象
-# 设定独立个体抽样结构，绑定归一化抽样权重
-svy_male   <- svydesign(ids = ~1, weights = ~wt, data = df_male)
-# 基于女性亚组数据集构建抽样调查设计对象
-# 抽样结构与权重设置和男性亚组保持一致，保证两组模型可比
-svy_female <- svydesign(ids = ~1, weights = ~wt, data = df_female)
-
-# 设定必须强制纳入模型的混杂变量集合，用于校正混杂偏倚
-confounder_vars <- c("年龄岁", "种族分类1", "受教育程度")
-# 选取单因素分析中具备统计学意义的自变量作为多因素模型候选变量
-sig_vars <- c("婚姻状况","高血压患病史","体质指数BMI","腰围cm","高密度脂蛋白胆固醇国际单位制")
-# 合并混杂变量与显著自变量并去除重复变量名称，确定最终纳入模型的变量集合
-model_vars <- unique(c(confounder_vars, sig_vars))
-# 将变量向量拼接为模型公式格式
-formula_str <- as.formula(paste("y ~", paste(model_vars, collapse = " + ")))
-
-# 男性亚组多因素加权Logistic回归模型拟合
-fit_male <- svyglm(formula_str, design = svy_male, family = quasibinomial)
-# 提取模型回归系数、标准误、Z统计量与P值汇总表
-coef_m <- coef(summary(fit_male))
-# 计算各变量回归系数对应的95%置信区间
-ci_m <- confint(fit_male)
-
-# 整理男性亚组回归结果数据表
-# 提取变量名称、指数化后比值比、置信区间上下限、原始P值
-res_male <- data.frame(
-  变量 = rownames(coef_m),
-  OR = round(exp(coef_m[, 1]), 3),
-  CI95_L = round(exp(ci_m[, 1]), 3),
-  CI95_U = round(exp(ci_m[, 2]), 3),
-  P数值 = as.numeric(coef_m[, 4])
-)
-
-# 根据SPSS显著性标记规则在P值后拼接对应星号
-# P小于0.001标记***，P介于0.001至0.01标记**，P介于0.01至0.05标记*，其余不添加标记
-# 格式化P值保留四位小数，关闭科学计数法显示格式
-res_male <- res_male %>%
-  mutate(
-    P值 = case_when(
-      P数值 < 0.001 ~ paste0(format(P数值, digits = 4, scientific = FALSE), "***"),
-      P数值 < 0.01  ~ paste0(format(P数值, digits = 4, scientific = FALSE), "**"),
-      P数值 < 0.05  ~ paste0(format(P数值, digits = 4, scientific = FALSE), "*"),
-      TRUE ~ format(P数值, digits = 4, scientific = FALSE)
-    )
-  ) %>% select(-P数值)
-
-# 在控制台输出男性亚组回归结果表头与显著性说明规则
-cat("==================== 【男性亚组 性别=1】多因素加权Logistic回归结果 ====================\n")
-cat("显著性：*** P<0.001；** P<0.01；* P<0.05\n")
-# 在控制台打印男性亚组完整回归结果表格
-print(res_male, row.names = FALSE)
-
-# 女性亚组多因素加权Logistic回归模型拟合
-fit_female <- svyglm(formula_str, design = svy_female, family = quasibinomial)
-# 提取女性亚组模型回归系数、标准误、Z统计量与P值汇总表
-coef_f <- coef(summary(fit_female))
-# 计算女性亚组各变量回归系数对应的95%置信区间
-ci_f <- confint(fit_female)
-
-# 整理女性亚组回归结果数据表
-# 提取变量名称、指数化后比值比、置信区间上下限、原始P值
-res_female <- data.frame(
-  变量 = rownames(coef_f),
-  OR = round(exp(coef_f[, 1]), 3),
-  CI95_L = round(exp(ci_f[, 1]), 3),
-  CI95_U = round(exp(ci_f[, 2]), 3),
-  P数值 = as.numeric(coef_f[, 4])
-)
-
-# 按照统一的SPSS显著性规则格式化P值并在末尾拼接显著性星号
-res_female <- res_female %>%
-  mutate(
-    P值 = case_when(
-      P数值 < 0.001 ~ paste0(format(P数值, digits = 4, scientific = FALSE), "***"),
-      P数值 < 0.01  ~ paste0(format(P数值, digits = 4, scientific = FALSE), "**"),
-      P数值 < 0.05  ~ paste0(format(P数值, digits = 4, scientific = FALSE), "*"),
-      TRUE ~ format(P数值, digits = 4, scientific = FALSE)
-    )
-  ) %>% select(-P数值)
-
-# 在控制台输出女性亚组回归结果表头与显著性说明规则
-cat("\n==================== 【女性亚组 性别=2】多因素加权Logistic回归结果 ====================\n")
-cat("显著性：*** P<0.001；** P<0.01；* P<0.05\n")
-# 在控制台打印女性亚组完整回归结果表格
-print(res_female, row.names = FALSE)
+write_xlsx(res_weight, "C:/Users/86156/Desktop/敏感性分析结果.xlsx")
