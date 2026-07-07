@@ -90,3 +90,77 @@ cat("N分期：");  print(table(df$N))
 cat("KRAS：");   print(table(df$KRAS))
 cat("性别：");   print(table(df$Sex))
 
+# ---- 2.7 样本基线特征----
+library(gtsummary)
+
+# 生成基线表：连续变量展示中位数(IQR)，分类变量n(%)
+table1 <- df %>%
+  select(Age, Sex, N, KRAS) %>%
+  tbl_summary(
+    statistic = list(
+      all_continuous() ~ "{median} ({p25}, {p75})",  # 连续年龄：中位数(四分位距)
+      all_categorical() ~ "{n} ({p}%)"               # 分类变量：例数(百分比)
+    ),
+    label = list(
+      Age ~ "Age, years",
+      Sex ~ "Gender",
+      N ~ "AJCC Pathologic N Stage",
+      KRAS ~ "KRAS Gene Status"
+    ),
+    missing = "no"  # 已提前清洗无缺失，不展示缺失值
+  ) %>%
+  modify_header(label ~ "Clinical characteristic", stat_0 ~ "Total cohort (n = {N})") %>%
+  bold_labels()
+
+# 在R控制台/Viewer窗口展示表格
+print(table1)
+
+# ============================================================
+# 第三部分：数据分析
+# ============================================================
+
+# ---- 3.1 单因素Cox回归----
+uni_vars <- c("Age", "Sex", "N", "KRAS")
+
+cat("\n========== 单因素Cox回归 ==========\n")
+for (v in uni_vars) {
+  cat("\n---", v, "---\n")
+  fit <- coxph(as.formula(paste("Surv(time, status) ~", v)), data = df)
+  print(summary(fit))
+}
+
+# ---- 3.2 多因素Cox回归（校正混杂因素）----
+cat("\n========== 多因素Cox回归 ==========\n")
+multi <- coxph(Surv(time, status) ~ Age + Sex + N + KRAS, data = df)
+print(summary(multi))
+# 提取HR、95%CI、P值
+res <- tidy(multi, exponentiate = TRUE, conf.int = TRUE)
+cat("\nHR (95%CI) & P值：\n")
+print(res[, c("term", "estimate", "conf.low", "conf.high", "p.value")])
+
+# ---- 3.3 森林图可视化 ----
+forest <- data.frame(
+  Variable = c("Age (每增加1岁)", 
+               "Sex (Female vs Male)", 
+               "N1 vs N0", 
+               "KRAS Mutant vs Wild-type"),
+  HR       = res$estimate,
+  Lower    = res$conf.low,
+  Upper    = res$conf.high,
+  P        = format(res$p.value, digits = 3, scientific = TRUE)
+)
+
+ggplot(forest, aes(x = HR, y = reorder(Variable, HR), 
+                   xmin = Lower, xmax = Upper)) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "red") +
+  geom_point(color = "blue", size = 3) +
+  geom_errorbarh(height = 0.2, color = "blue") +
+  scale_x_continuous(trans = "log10", breaks = c(0.5, 1, 2, 3, 4)) +
+  geom_text(aes(label = paste0(round(HR, 2), " (", 
+                               round(Lower, 2), "-", 
+                               round(Upper, 2), ")  P=", P)), 
+            x = max(forest$Upper) * 1.1, hjust = 0, size = 3.5) +
+  labs(x = "Hazard Ratio (log scale)", y = "", 
+       title = "多因素Cox回归森林图") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))

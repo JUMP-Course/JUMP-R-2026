@@ -8,66 +8,48 @@ date: "2026-06-08"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## 1. 研究背景
+##1. 研究背景
+###1.1 心血管疾病的流行病学负担
+    心血管疾病（CVD）是全球范围内导致死亡和残疾的主要原因之一。根据世界卫生组织（WHO）数据，2019 年全球约有 1790 万人死于心血管疾病，占总死亡人数的 32%。其中，缺血性心脏病和脑卒中是最主要的死亡原因。中国心血管疾病患病率持续上升，现患人数约 3.3 亿，心血管疾病已成为我国居民的首位死因，占城乡居民总死亡原因的 40% 以上。
 
-### 1.1 心血管疾病的流行病学负担
+###1.2 血脂异常是心血管疾病的重要危险因素
+    血脂异常是心血管疾病的关键可调控危险因素。大量流行病学研究和随机对照试验证实，血清总胆固醇（TC）、甘油三酯（TG）、低密度脂蛋白胆固醇（LDL-C）水平升高，以及高密度脂蛋白胆固醇（HDL-C）水平降低，均与动脉粥样硬化性心血管疾病（ASCVD）风险增加密切相关。《中国心血管病一级预防指南》指出，控制血脂异常可显著降低心血管事件的发生率和死亡率。
+    
+###1.3 膳食添加糖摄入与血脂异常的关联
+   近年来，膳食添加糖对血脂代谢的影响受到广泛关注。添加糖是指在食品加工或制备过程中人为添加的糖类及糖浆，包括蔗糖、果糖、葡萄糖、高果糖玉米糖浆等。与天然存在于水果、蔬菜中的内源性糖不同，添加糖不含微量营养素和膳食纤维，被称为 "空热量" 来源。
+多项研究发现，高添加糖摄入可能通过以下机制影响血脂代谢：增加肝脏甘油三酯合成；降低脂蛋白脂酶活性；诱导胰岛素抵抗；促进小而密 LDL 颗粒形成。
 
-心血管疾病（CVD）是全球范围内导致死亡和残疾的主要原因之一。根据世界卫生组织（WHO）数据，2019年全球约有1790万人死于心血管疾病，占总死亡人数的32%。其中，缺血性心脏病和脑卒中是最主要的死亡原因。中国心血管疾病患病率持续上升，现患人数约3.3亿，心血管疾病已成为我国居民的首位死因，占城乡居民总死亡原因的40%以上。
+##2. 研究问题
+   基于上述研究背景，本研究利用2017-2018年美国国家健康与营养调查（NHANES）数据，旨在：
+描述不同添加糖摄入水平下成年人的血脂异常患病情况；分析膳食添加糖摄入与血脂异常的关联；探讨添加糖摄入与血脂的剂量-反应关系；为制定针对性的膳食指南和心血管疾病防控策略提供科学依据。
 
-### 1.2 血脂异常是心血管疾病的重要危险因素
-
-血脂异常是心血管疾病的关键可调控危险因素。大量流行病学研究和随机对照试验证实，血清总胆固醇（TC）、甘油三酯（TG）、低密度脂蛋白胆固醇（LDL-C）水平升高，以及高密度脂蛋白胆固醇（HDL-C）水平降低，均与动脉粥样硬化性心血管疾病（ASCVD）风险增加密切相关。《中国心血管病一级预防指南》指出，控制血脂异常可显著降低心血管事件的发生率和死亡率。
-
-### 1.3 膳食添加糖摄入与血脂异常的关联
-
-近年来，膳食添加糖对血脂代谢的影响受到广泛关注。添加糖是指在食品加工或制备过程中人为添加的糖类及糖浆，包括蔗糖、果糖、葡萄糖、高果糖玉米糖浆等。与天然存在于水果、蔬菜中的内源性糖不同，添加糖不含微量营养素和膳食纤维，被称为"空热量"来源。
-
-多项研究发现，高添加糖摄入可能通过以下机制影响血脂代谢：
-- 增加肝脏甘油三酯合成
-- 降低脂蛋白脂酶活性
-- 诱导胰岛素抵抗
-- 促进小而密LDL颗粒形成
-
-### 1.4 本研究目的
-
-基于上述研究背景，本研究利用2017-2018年美国国家健康与营养调查（NHANES）数据，旨在：
-
-1. 描述不同添加糖摄入水平下成年人的血脂异常患病情况
-2. 分析膳食添加糖摄入与血脂异常的关联
-3. 探讨添加糖摄入与血脂的剂量-反应关系
-4. 为制定针对性的膳食指南和心血管疾病防控策略提供科学依据
-## 2. 数据与方法
-
-### 2.1 数据来源
-
-本研究使用美国国家健康与营养调查（National Health and Nutrition Examination Survey, NHANES）2017-2018 年数据。NHANES是一项连续、分层的全国代表性横断面调查，采用复杂多阶段概率抽样设计，每两年为一个周期。所有数据均已公开，可在官方网站下载。
-### 2.2 研究对象
+##3. 数据来源与研究对象
+###3.1 数据来源
+   本研究使用美国国家健康与营养调查（National Health and Nutrition Examination Survey, NHANES）2017-2018年数据。NHANES是一项连续、分层的全国代表性横断面调查，采用复杂多阶段概率抽样设计，每两年为一个周期。所有数据均已公开，可在官方网站下载。
+   
+###3.2 研究对象
 本研究纳入标准如下：
-- 年龄 ≥18 岁的成年人
-- 完成膳食调查（DR1TOT_J.XPT）
-- 完成血脂检测（TCHOL_J.XPT、TRIGLY_J.XPT、HDL_J.XPT）
+年龄 ≥18 岁的成年人
+完成膳食调查（DR1TOT_J.XPT）
+完成血脂检测（TCHOL_J.XPT、TRIGLY_J.XPT、HDL_J.XPT）
 排除标准如下：
-- 孕妇（RIDEXPRG = 1）
-- 关键变量（添加糖摄入、血脂指标）缺失者
-### 2.3 变量定义
+关键变量（添加糖摄入、血脂指标）缺失者
 
-- **暴露变量**：添加糖摄入量（三分位数分组：低/中/高）
-- **结局变量**：血脂异常（TC≥240mg/dL, TG≥200mg/dL, HDL<40/50mg/dL, LDL≥160mg/dL）
-- **协变量**：年龄、性别、种族、教育、收入、BMI、总能量摄入
+##4. 变量说明
+暴露变量：添加糖摄入量（三分位数分组：低 / 中 / 高）
+结局变量：血脂异常（TC≥240mg/dL, TG≥200mg/dL, HDL<40/50mg/dL, LDL≥160mg/dL）
+协变量：年龄、性别、种族、教育、收入、BMI、总能量摄入
 
-### 2.4 数据准备
+## 5. 数据清洗
 
-```{r load_data, echo=TRUE...}
+```{r load_data, echo=TRUE}
 # 加载包
 library(haven)
 library(dplyr)
 library(tableone)
 setwd("D:/NHANES-2017-2018")
 
-# ============================================================
-# 1. 读取并合并原始数据
-# ============================================================
-
+# 5.1 读取并合并原始数据
 # 基础数据
 demo   <- read_xpt("DEMO_J.XPT")
 bmx    <- read_xpt("BMX_J.XPT")
@@ -101,9 +83,8 @@ sugar_data$exposure_3 <- factor(sugar_data$exposure_3,
 df_all <- inner_join(demo,bmx,by="SEQN") %>% inner_join(sugar_data,by="SEQN")
 df <- inner_join(df_all,lipid,by="SEQN")
 
-# ============================================================
-# 2. 筛选变量和样本
-# ============================================================
+
+# 5.2 筛选变量和样本
 
 # 关键变量
 keep_var <- c("SEQN","exposure_3","RIDAGEYR","RIAGENDR","RIDRETH1","DMDEDUC2","INDFMPIR",
@@ -118,9 +99,8 @@ cat("1. 成年原始样本量：", nrow(df_adult), "\n")
 df_sel <- df_adult[, keep_var]
 cat("2. 筛选变量后样本量：", nrow(df_sel), "\n")
 
-# ============================================================
-# 3. 缺失值处理
-# ============================================================
+
+# 5.3 缺失值处理
 
 # 剔除核心变量缺失（暴露+血脂）
 key_vars <- c("exposure_3", "LBXTC", "LBXTR", "LBXHD", "LBDLDL")
@@ -146,10 +126,8 @@ get_mode <- function(x){
 }
 df_clean$DMDEDUC2[is.na(df_clean$DMDEDUC2)] <- get_mode(df_clean$DMDEDUC2)
 
-# ============================================================
-# 4. 异常值处理（缩尾法）
-# ============================================================
 
+# 5.4 异常值处理（缩尾法）
 # 计算总能量摄入 1% 和 99% 分位数
 q01 <- quantile(df_clean$DR1TKCAL, 0.01, na.rm = TRUE)
 q99 <- quantile(df_clean$DR1TKCAL, 0.99, na.rm = TRUE)
@@ -161,10 +139,7 @@ df_clean$DR1TKCAL_winsor[df_clean$DR1TKCAL > q99] <- q99
 
 cat("\n4. 插补+缩尾后样本量：", nrow(df_clean), "\n")
 
-# ============================================================
-# 5. 生成最终分析数据集 df_final
-# ============================================================
-
+# 5.5 生成最终分析数据集 df_final
 df_final <- df_clean %>%
   mutate(
     high_tc  = ifelse(LBXTC >= 240, 1, 0),
@@ -175,9 +150,689 @@ df_final <- df_clean %>%
 
 cat("5. 最终分析样本量：", nrow(df_final), "\n")
 
-# ============================================================
-# 6. 保存清洗后的数据
-# ============================================================
-
+# 5.6 保存清洗后的数据
 saveRDS(df_final, "df_cleaned.rds")
-cat("\n数据清洗完成！已保存到 df_cleaned.rds\n")
+
+
+```
+
+
+## 6. 描述性统计
+```{r table_one, echo=TRUE}
+library(tableone) 
+library(dplyr)      
+
+# 前置核查：缺失值统计 
+# 定义连续、分类变量集合
+con_vars <- c("RIDAGEYR", "BMXBMI", "DR1TSUGR", "DR1TKCAL", "DR1TKCAL_winsor",
+              "LBXTC", "LBXTR", "LBXHD", "LBDLDL", "INDFMPIR")
+cat_vars <- c("RIAGENDR", "RIDRETH1", "DMDEDUC2","exposure_3", "high_tc", 
+              "high_tg", "low_hdl", "high_ldl")
+# 统计各变量缺失样本数量
+colSums(is.na(df_final[, c(con_vars, cat_vars)]))
+
+# 定义偏态分布连续变量（基线表采用中位数[四分位数]展示）
+nonnormal_vars <- c("BMXBMI", "DR1TSUGR", "DR1TKCAL", "DR1TKCAL_winsor",
+                    "LBXTC", "LBXTR", "LBXHD", "LBDLDL", "INDFMPIR")
+# 将全部分类变量转换为因子格式
+df_final[cat_vars] <- lapply(df_final[cat_vars], factor)
+
+# 单变量分布核查
+## 分类变量频数统计
+for(v in cat_vars){
+  print(table(df_final[[v]]))
+}
+## 连续变量极值、四分位数汇总统计
+lapply(df_final[, con_vars], summary) 
+
+# 生成全样本总体基线特征表
+tab_total <- CreateTableOne(  
+  vars = c(con_vars, cat_vars),
+  data = df_final,
+  factorVars = cat_vars
+)
+# 输出基线表，偏态变量使用中位数(IQR)，P值保留3位小数
+print(tab_total, 
+      showAllLevels = TRUE,       
+      nonnormal = nonnormal_vars, 
+      pDigits = 3                 
+)
+
+# 生成膳食添加糖三分组分层基线表与组间差异检验
+tab_group <- CreateTableOne(
+  vars = c(con_vars, cat_vars),       
+  strata = "exposure_3", # 分层变量：膳食添加糖三分组
+  data = df_final,
+  factorVars = cat_vars
+)
+print(tab_group, 
+      showAllLevels = TRUE, 
+      nonnormal = nonnormal_vars, 
+      pDigits = 3,
+      test = TRUE)
+
+# 将基线统计表导出为CSV文件
+## 导出全样本总体基线表
+tab_total_export <- print(tab_total,
+                          showAllLevels = TRUE,
+                          nonnormal = nonnormal_vars,
+                          pDigits = 3,
+                          printToggle = FALSE)
+write.csv(tab_total_export, file="总体描述统计表.csv", row.names = TRUE)
+
+## 导出三分组分层基线表（附带组间差异P值）
+tab_group_export <- print(tab_group,
+                          showAllLevels = TRUE,
+                          nonnormal = nonnormal_vars,
+                          pDigits = 3,
+                          test = TRUE,
+                          printToggle = FALSE)
+write.csv(tab_group_export, file="分组描述统计表.csv", row.names = TRUE)
+```
+
+
+##7.数据可视化
+```{r vis_plot, echo=TRUE}
+# 7.1 绘图包加载与变量分布可视化
+# 加载绘图、拼图工具包
+library(ggplot2)
+library(patchwork)
+
+# 将分组暴露变量转换为因子
+df_final$exposure_3 <- factor(df_final$exposure_3)
+
+## 7.1.1 膳食添加糖单变量分布直方图+密度曲线
+ggplot(data = df_final, aes(x = DR1TSUGR, y = ..density..)) +
+  geom_histogram(bins = 30, fill = "steelblue", alpha = 0.6, color = "black") +
+  geom_density(color = "red", size = 1)+
+  labs(title = "膳食添加糖摄入量分布", x = "DR1TSUGR (g)", y = "密度") +
+  theme_bw()
+
+## 7.1.2 四分类血脂指标分组箱线图拼接
+# 总添加糖分组箱线图
+ggplot(data = df_final, aes(x = exposure_3, y = DR1TSUGR)) +
+  geom_boxplot(fill = "lightgreen", alpha = 0.7) +
+  labs(
+    x = "膳食添加糖摄入分组",
+    y = "总添加糖摄入量",
+    title = "不同添加糖摄入组总添加糖摄入量对比"
+  ) +
+  theme_bw() 
+
+# 各血脂指标箱线图
+p_hdl <- ggplot(data = df_final, aes(x = exposure_3, y = LBXHD)) +
+  geom_boxplot(fill = "lightblue", alpha = 0.7) +
+  labs(y = "HDL-C (mg/dL)", title = "高密度脂蛋白胆固醇") +
+  theme_bw()
+
+p_tg <- ggplot(data = df_final, aes(x = exposure_3, y = LBXTR)) +
+  geom_boxplot(fill = "red", alpha = 0.7) +
+  labs(y = "TG（mg/dL）", title = "甘油三酯") +
+  theme_bw()
+
+p_ldl <- ggplot(data = df_final, aes(x = exposure_3, y = LBDLDL)) +
+  geom_boxplot(fill = "brown", alpha = 0.7) +
+  labs(y = "LDL-C (mg/dL)", title = "低密度脂蛋白胆固醇") +
+  theme_bw()
+
+p_tc <- ggplot(data = df_final, aes(x = exposure_3, y = LBXTC)) +
+  geom_boxplot(fill = "orange", alpha = 0.7) +
+  labs(y = "TC (mg/dL)", title = "总胆固醇") +
+  theme_bw()
+
+# 2行2列拼接四张血脂箱线图
+all_lipid <- (p_hdl + p_tg) / (p_ldl + p_tc)
+all_lipid + plot_annotation(
+  title = "不同膳食添加糖摄入组血脂指标分布对比",
+  caption = "膳食添加糖摄入分组"
+) & theme(
+  plot.caption = element_text(hjust = 0.5, size = 13)
+)
+
+# 7.2 分组均值与95%置信区间误差棒趋势图
+library(dplyr)
+df_group <- group_by(df_final, exposure_3)
+
+## HDL-C分组均值趋势图
+df_trend_hdl <- summarise(
+  df_group,
+  mean_hdl = mean(LBXHD, na.rm = TRUE),
+  se_hdl = sd(LBXHD, na.rm = TRUE)/sqrt(n()),
+  lower = mean_hdl - 1.96*se_hdl,
+  upper = mean_hdl + 1.96*se_hdl
+)
+ggplot(data = df_trend_hdl, aes(x = exposure_3, y = mean_hdl, group = 1)) +
+  geom_point(size = 3, color = "darkblue") +
+  geom_line(color = "darkblue", linewidth = 1) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    title = "膳食添加糖摄入与高密度脂蛋白胆固醇的趋势关系",
+    x = "膳食添加糖摄入分组",
+    y = "高密度脂蛋白胆固醇（mg/dL）"
+  ) +
+  theme_bw() 
+
+## LDL-C分组均值趋势图
+df_trend_ldl <- summarise(
+  df_group,
+  mean_ldl = mean(LBDLDL, na.rm = TRUE),
+  se_ldl = sd(LBDLDL, na.rm = TRUE)/sqrt(n()),
+  lower = mean_ldl - 1.96 * se_ldl,
+  upper = mean_ldl + 1.96 * se_ldl
+)
+ggplot(data = df_trend_ldl, aes(x = exposure_3, y = mean_ldl, group = 1)) +
+  geom_point(size = 3, color = "purple") +
+  geom_line(color = "purple", linewidth = 1) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  labs(
+    title = "膳食添加糖摄入与低密度脂蛋白胆固醇的趋势关系",
+    x = "膳食添加糖摄入分组",
+    y = "低密度脂蛋白胆固醇（mg/dL）"
+  ) +
+  theme_bw() 
+
+# 7.3 膳食添加糖与血脂线性相关散点拟合图
+## 添加糖与HDL-C散点+线性拟合曲线
+p_scatter_hdl <- ggplot(data = df_final, aes(x = DR1TSUGR, y = LBXHD)) +
+  geom_point(alpha = 0.2, color = "gray50") +
+  geom_smooth(method = "lm", color = "steelblue", linewidth = 1, se = TRUE) +
+  labs(
+    title = "膳食添加糖摄入量与HDL-C相关性",
+    x = "膳食添加糖摄入量（g）",
+    y = "HDL-C（mg/dL）"
+  ) +
+  theme_bw() + theme(
+    plot.title = element_text(size = 11, margin = margin(b = 8)),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    axis.title.x = element_blank()
+  )
+
+## 添加糖与LDL-C散点+线性拟合曲线
+p_scatter_ldl <- ggplot(data = df_final, aes(x = DR1TSUGR, y = LBDLDL)) +
+  geom_point(alpha = 0.2, color = "gray50") +
+  geom_smooth(method = "lm", color = "red", linewidth = 1, se = TRUE) +
+  labs(
+    title = "膳食添加糖摄入量与LDL-C相关性",
+    x = "膳食添加糖摄入量（g）",
+    y = "LDL-C（mg/dL）"
+  ) +
+  theme_bw() + theme(
+    plot.title = element_text(size = 11, margin = margin(b = 8)),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    axis.title.x = element_blank()
+  )
+
+# 两张散点图横向拼接输出
+scatter_all <- p_scatter_hdl + p_scatter_ldl
+scatter_all + plot_annotation(
+  title = "膳食添加糖摄入量与血脂指标线性相关可视化",
+  caption = "膳食添加糖摄入量（g）"
+) & theme(plot.caption = element_text(hjust = 0.5, size = 12))
+```
+
+
+## 8.统计分析与模型结果
+```{r stat_analysis, echo=TRUE}
+### 8.1 数据加载
+options(repos = "https://mirrors.tuna.tsinghua.edu.cn/CRAN/")
+
+# 包安装统一放置文档setup块，本段仅执行加载，避免重复安装
+library(dplyr)
+library(dunn.test)
+library(car)
+library(stargazer)
+library(ResourceSelection)
+library(forestplot)
+library(splines)
+library(pROC)
+library(mgcv)
+library(ggplot2)
+
+# 读取清洗完成的最终分析数据集
+df_final <- readRDS("df_cleaned.rds")
+
+# 统一定义分析变量集合
+# 连续型血脂结局指标
+lipid_con <- c("LBXHD","LBXTR","LBDLDL","LBXTC")   
+# 二分类血脂异常患病结局
+lipid_bin <- c("high_tc","high_tg","low_hdl","high_ldl")    
+# 混杂校正变量全集
+confounder <- c("RIDAGEYR","RIAGENDR","RIDRETH1","DMDEDUC2","INDFMPIR","BMXBMI","DR1TKCAL")
+# 核心连续暴露变量：每日膳食添加糖摄入量
+exposure_var <- "DR1TSUGR"
+
+### 8.2 单变量组间差异检验
+## 8.2.1 连续血脂指标多组比较：Kruskal-Wallis检验+Dunn事后两两比较（Bonferroni校正）
+for(var in lipid_con){
+  cat("\n血脂指标：", var, "\n")
+  dunn.test(x = df_final[[var]], g = df_final$exposure_3, method = "bonferroni")
+}
+
+## 8.2.2 分类血脂异常患病构成：Pearson卡方检验
+for(var in lipid_bin){
+  cat("\n血脂异常结局：", var, "\n")
+  tab <- table(df_final$exposure_3, df_final[[var]])
+  print(tab)
+  chi_result <- chisq.test(tab)
+  print(chi_result)
+}
+
+## 8.2.3 膳食添加糖与血脂Spearman秩相关分析（适配偏态膳食数据）
+for(var in lipid_con){
+  cat("\nSpearman相关：DR1TSUGR vs ", var, "\n")
+  cor_result <- cor.test(
+    df_final[[exposure_var]],
+    df_final[[var]], 
+    method = "spearman",
+    exact = FALSE)
+  print(cor_result)
+}
+
+
+### 8.3 分层多因素回归模型构建
+# 自定义函数批量生成三层逐步校正回归公式
+build_form <- function(outcome, expo) {
+  # M1粗模型：仅暴露变量，无混杂校正
+  # M2基础校正：人口社会学混杂变量
+  # M3完全校正：人口学+BMI+总能量摄入（主结论模型）
+  confounder_demo <- c("RIDAGEYR", "RIAGENDR", "RIDRETH1", "DMDEDUC2", "INDFMPIR")
+  confounder_all <- c(confounder_demo, "BMXBMI", "DR1TKCAL")
+  
+  form_M1 <- as.formula(paste0(outcome, " ~ ", expo))
+  form_M2 <- as.formula(paste0(outcome, " ~ ", expo, " + ", paste(confounder_demo, collapse = "+")))
+  form_M3 <- as.formula(paste0(outcome, " ~ ", expo, " + ", paste(confounder_all, collapse = "+")))
+  return(list(M1 = form_M1, M2 = form_M2, M3 = form_M3))
+}
+
+## 8.3.1 连续血脂指标多元线性回归（输出回归系数β）
+for(y_out in lipid_con){
+  cat("\n连续血脂结局：", y_out, "\n")
+  formula_list_con <- build_form(outcome = y_out, expo = "DR1TSUGR")
+  lm_M1 <- lm(formula_list_con$M1, data = df_final)
+  lm_M2 <- lm(formula_list_con$M2, data = df_final)
+  lm_M3 <- lm(formula_list_con$M3, data = df_final)
+  
+  # 控制台打印回归结果
+  stargazer(lm_M1, lm_M2, lm_M3, type = "text", ci = TRUE, digits = 3)
+  # 批量导出回归结果至本地CSV文件
+  stargazer(lm_M1, lm_M2, lm_M3, out = paste0("线性回归_",y_out,".csv"), ci = TRUE, digits = 3)
+  
+  # 释放内存
+  rm(lm_M1,lm_M2,lm_M3)
+  gc()
+}
+
+## 8.3.2 连续添加糖暴露Logistic回归（二分类血脂异常，输出OR值）
+mod_store <- list() # 存储全部M3完整校正模型，用于后续模型诊断
+for(y_bin in lipid_bin){
+  cat("\n二分类血脂异常结局：", y_bin, "\n")
+  form_list <- build_form(outcome = y_bin, expo = "DR1TSUGR")
+  
+  logit_M1 <- glm(form_list$M1, family = binomial(link = "logit"), data = df_final)
+  logit_M2 <- glm(form_list$M2, family = binomial(link = "logit"), data = df_final)
+  logit_M3 <- glm(form_list$M3, family = binomial(link = "logit"), data = df_final)
+  
+  mod_store[[y_bin]] <- logit_M3
+  stargazer(logit_M1, logit_M2, logit_M3, type = "text", ci = TRUE, apply.coef = exp, digits = 3)
+  stargazer(logit_M1, logit_M2, logit_M3, out = paste0("Logistic回归_",y_bin,".csv"), ci = TRUE, apply.coef = exp, digits = 3)
+  
+  rm(logit_M1,logit_M2,logit_M3)
+  gc()
+}
+
+## 8.3.3 三分组分类添加糖Logistic回归（验证剂量反应梯度效应）
+for (y in lipid_bin) {
+  formula_list <- build_form(outcome = y, expo =  "exposure_3")
+  m1 <- glm(formula_list$M1, family = binomial, data = df_final)
+  m2 <- glm(formula_list$M2, family = binomial, data = df_final)
+  m3 <- glm(formula_list$M3, family = binomial, data = df_final)
+  
+  cat("\n结局：", y, "\n")
+  stargazer(m1, m2, m3, apply.coef = exp, ci = TRUE, type = "text", digits = 3)
+}
+
+
+### 8.4 回归模型诊断检验
+## 8.4.1 VIF方差膨胀因子多重共线性检验
+for(y_bin in lipid_bin){
+  cat("\n结局", y_bin, " 方差膨胀因子VIF\n")
+  full_mod <- mod_store[[y_bin]]
+  print(vif(full_mod))
+}
+
+## 8.4.2 Box-Tidwell检验：连续自变量线性假设检验（以低HDL血症为例）
+y_bin <- "low_hdl"
+form_bt <- as.formula(paste0(
+  y_bin, " ~ DR1TSUGR + I(DR1TSUGR^2) + RIDAGEYR + I(RIDAGEYR^2) + INDFMPIR + I(INDFMPIR^2) + BMXBMI + I(BMXBMI^2) + DR1TKCAL + I(DR1TKCAL^2) + ",
+  paste(c("RIAGENDR","RIDRETH1","DMDEDUC2"), collapse = "+")
+))
+mod_bt <- glm(form_bt, family = binomial(), data = df_final)
+cat("\nlow_hdl Box-Tidwell检验（二次项P值判断非线性）\n")
+summary(mod_bt)
+
+## 8.4.3 Hosmer-Lemeshow拟合优度检验（Logistic模型适配性）
+for(y_bin in lipid_bin){
+  cat("\n结局", y_bin, " Hosmer-Lemeshow拟合优度检验\n")
+  full_mod <- mod_store[[y_bin]]
+  hl_res <- hoslem.test(full_mod$y, fitted(full_mod), g = 10)
+  print(hl_res)
+}
+
+## 8.4.4 模型优化：仅纳入BMI二次项修正低HDL血症模型
+form_2 <- as.formula(paste0(
+  y_bin, " ~ DR1TSUGR + RIDAGEYR + INDFMPIR + BMXBMI + I(BMXBMI^2) + DR1TKCAL + ",
+  paste(c("RIAGENDR","RIDRETH1","DMDEDUC2"), collapse = "+")
+))
+mod_2 <- glm(form_2, family = binomial(), data = df_final)
+hl2 <- hoslem.test(mod_2$y, fitted(mod_2), g = 10)
+cat("\nlow_hdl修正后模型HL检验结果\n")
+print(hl2)
+
+## 8.4.5 ROC曲线与AUC值：模型区分度评价
+for(y_bin in lipid_bin){
+  cat("\n结局：", y_bin, " ROC-AUC\n")
+  full_mod <- mod_store[[y_bin]]
+  roc_obj <- roc(response = full_mod$y, predictor = fitted(full_mod), quiet = TRUE)
+  auc_val <- auc(roc_obj)
+  ci_auc <- ci.auc(roc_obj)
+  cat("AUC =", auc_val, "，95%CI：", ci_auc[1], "~", ci_auc[3], "\n")
+  
+  plot(roc_obj, main = paste0("ROC曲线：",y_bin,"完全校正M3模型"), print.auc = TRUE, grid = TRUE)
+  abline(a=0,b=1,lty=2,col="gray")
+}
+
+# 三分位分组暴露模型AUC对比自定义函数
+get_auc <- function(glm_model){
+  y_true <- glm_model$y
+  p_pred <- fitted(glm_model)
+  p_case <- p_pred[y_true == 1]
+  p_ctrl <- p_pred[y_true == 0]
+  U_stat <- sum(outer(p_case, p_ctrl, ">")) + 0.5 * sum(outer(p_case, p_ctrl, "=="))
+  return(round(U_stat / (length(p_case) * length(p_ctrl)), 3))
+}
+df_final$sugar_group <- cut(
+  df_final$DR1TSUGR,
+  breaks = quantile(df_final$DR1TSUGR, probs = c(0, 1/3, 2/3, 1), na.rm = T),
+  labels = c("低摄入","中摄入","高摄入"),
+  include.lowest = TRUE
+)
+mod_group <- glm(
+  high_ldl ~ sugar_group + RIDAGEYR + RIAGENDR + RIDRETH1 + DMDEDUC2 + INDFMPIR + BMXBMI + DR1TKCAL,
+  family = binomial(), data = df_final
+)
+auc_group <- get_auc(mod_group)
+cat("\n三分组分类暴露模型AUC\n")
+cat("DR1TSUGR三分组分类模型 AUC =", auc_group, "\n")
+
+### 8.5 敏感性分析（剔除极端值验证稳健性）
+# 剔除膳食添加糖摄入量1%、99%分位数以外极端样本
+q1 <- quantile(df_final$DR1TSUGR, probs = 0.01, na.rm = TRUE)
+q99 <- quantile(df_final$DR1TSUGR, probs = 0.99, na.rm = TRUE)
+df_sens <- filter(df_final, DR1TSUGR >= q1 & DR1TSUGR <= q99)
+
+# 极端值剔除后重拟合全部完全校正Logistic模型
+for(y_bin in lipid_bin){
+  cat("\n敏感性分析（剔除1%极值）结局：", y_bin, "\n")
+  form_all <- build_form(outcome = y_bin, expo = "DR1TSUGR")
+  mod_sens <- glm(form_all$M3, binomial(), data = df_sens)
+  stargazer(mod_sens, type = "text", apply.coef = exp, ci = TRUE, digits = 3)
+  rm(mod_sens)
+}
+rm(df_sens)
+
+# 原始完整样本主模型结果对照
+for(y_bin in lipid_bin){
+  cat("\n原始完整样本M3主模型：", y_bin, "\n")
+  mod_main <- mod_store[[y_bin]]
+  stargazer(mod_main, type = "text", apply.coef = exp, ci = TRUE, digits = 3)
+}
+
+
+### 8.6 交互效应检验与性别分层亚组分析
+## 8.6.1 添加糖 × BMI交互项检验（低HDL血症）
+form_inter_bmi <- as.formula(paste0("low_hdl ~ DR1TSUGR * BMXBMI + ", paste(confounder, collapse = "+")))
+mod_inter_bmi <- glm(form_inter_bmi, binomial(), df_final)
+cat("\n添加糖 × BMI交互模型\n")
+stargazer(mod_inter_bmi, type = "text", apply.coef = exp, ci = TRUE, digits = 3)
+
+## 8.6.2 添加糖 × 性别交互项检验（低HDL血症）
+form_inter_sex <- as.formula(paste0("low_hdl ~ DR1TSUGR * RIAGENDR + ", paste(confounder, collapse = "+")))
+mod_inter_sex <- glm(form_inter_sex, family = binomial(), data = df_final)
+cat("\n添加糖 × 性别交互模型\n")
+stargazer(mod_inter_sex, type = "text", apply.coef = exp, ci = TRUE, digits = 3)
+
+## 8.6.3 性别分层Logistic回归（分男性、女性独立建模，剔除性别混杂变量）
+confounder_sub <- confounder[confounder != "RIAGENDR"]
+full_form_str <- paste0("low_hdl ~ DR1TSUGR + ", paste(confounder_sub, collapse = "+"))
+full_form <- as.formula(full_form_str)
+
+# 女性亚组
+df_female <- filter(df_final, RIAGENDR == 2)
+mod_f <- glm(full_form, family = binomial(), data = df_female)
+# 男性亚组
+df_male <- filter(df_final, RIAGENDR == 1)
+mod_m <- glm(full_form, family = binomial(), data = df_male)
+
+cat("\n性别分层完全校正模型对比\n")
+stargazer(mod_f, mod_m, type = "text", apply.coef = exp, ci = TRUE, digits = 3)
+rm(df_female, df_male, mod_f, mod_m, confounder_sub, full_form_str, full_form)
+
+
+### 8.7 关联效应可视化：森林图
+# 构建四类血脂异常完全校正模型OR汇总数据集
+forest_data <- data.frame(
+  outcome_name = c("高总胆固醇血症 high_tc","高甘油三酯血症 high_tg","低高密度脂蛋白血症 low_hdl","高低密度脂蛋白血症 high_ldl"),
+  OR = c(1.000, 1.001, 1.004, 1.001),
+  CI_lower = c(0.998, 0.998, 1.002, 0.998),
+  CI_upper = c(1.003, 1.004, 1.005, 1.004)
+)
+table_text <- cbind(forest_data$outcome_name, paste0(forest_data$OR, "(", forest_data$CI_lower, "-", forest_data$CI_upper, ")"))
+mean_ci_matrix <- cbind(forest_data$OR, forest_data$CI_lower, forest_data$CI_upper)
+
+# 绘制森林图
+forestplot(
+  labeltext = table_text, mean = mean_ci_matrix[,1], lower = mean_ci_matrix[,2], upper = mean_ci_matrix[,3],
+  new_page = TRUE, zero = 1, xlog = FALSE, boxsize = 0.4,
+  xlab = "比值比 OR (95%置信区间)",
+  title = "图1 膳食添加糖与四类血脂异常患病关联（完全校正M3模型）",
+  col = forestplot::fpColors(box = "#E64B35", line = "#4DBBD5", zero = "black")
+)
+
+
+### 8.8 HDL-C剂量-反应关系建模（连续血脂结局）
+## 8.8.1 线性多元线性模型
+linear_hdl <- lm(LBXHD ~ DR1TSUGR + RIDAGEYR + RIAGENDR + BMXBMI + DR1TKCAL, data = df_final)
+newdata_linear <- expand.grid(
+  DR1TSUGR = seq(min(df_final$DR1TSUGR, na.rm=T), max(df_final$DR1TSUGR, na.rm=T), length.out=100),
+  RIDAGEYR = mean(df_final$RIDAGEYR, na.rm=T),
+  BMXBMI = mean(df_final$BMXBMI, na.rm=T),
+  DR1TKCAL = mean(df_final$DR1TKCAL, na.rm=T),
+  RIAGENDR = factor(1)
+)
+pred_lin <- predict(linear_hdl, newdata = newdata_linear, interval = "confidence")
+newdata_linear$fit <- pred_lin[,"fit"]
+newdata_linear$lwr <- pred_lin[,"lwr"]
+newdata_linear$upr <- pred_lin[,"upr"]
+
+# 线性关联趋势绘图
+ggplot(newdata_linear, aes(x=DR1TSUGR, y=fit)) +
+  geom_line(linewidth=1, color="#1F77B4") +
+  geom_ribbon(aes(ymin=lwr, ymax=upr), alpha=0.2, fill="#1F77B4") +
+  labs(x="膳食添加糖摄入量(g)", y="校正后HDL-C浓度(mg/dL)", title="图2 膳食添加糖摄入量与校正后 HDL-C 浓度的线性关联趋势") +
+  theme_bw()
+
+## 8.8.2 自然三次样条非线性模型（自由度df=4）
+ns_mod <- lm(LBXHD ~ ns(DR1TSUGR, df = 4) + RIDAGEYR + RIAGENDR + BMXBMI + DR1TKCAL, data = df_final)
+newdata_grid <- expand.grid(
+  DR1TSUGR = seq(min(df_final$DR1TSUGR, na.rm = T), max(df_final$DR1TSUGR, na.rm = T), length.out = 100),
+  RIDAGEYR = mean(df_final$RIDAGEYR, na.rm = T),
+  BMXBMI = mean(df_final$BMXBMI, na.rm = T),
+  DR1TKCAL = mean(df_final$DR1TKCAL, na.rm = T),
+  RIAGENDR = factor(1)
+)
+pred_result <- predict(ns_mod, newdata = newdata_grid, interval = "confidence")
+newdata_grid$fit <- pred_result[, "fit"]
+newdata_grid$lwr <- pred_result[, "lwr"]
+newdata_grid$upr <- pred_result[, "upr"] 
+
+# 非线性样条趋势绘图
+ggplot(newdata_grid, aes(x = DR1TSUGR, y = fit)) +
+  geom_line(linewidth = 1, color = "#2E86AB") +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2, fill = "#2E86AB") +
+  labs(x = "膳食添加糖摄入量（g）", y = "校正后HDL-C（mg/dL）", title = "图3 膳食添加糖与HDL-C非线性关联趋势（自然三次样条df=4）") +
+  theme_bw()
+
+# 线性模型vs样条模型拟合效果对比（AIC+ANOVA）
+cat("\nHDL-C线性/样条模型AIC对比\n")
+print(AIC(linear_hdl, ns_mod))
+cat("\nHDL-C线性vs样条方差分析ANOVA\n")
+anova(linear_hdl, ns_mod)
+
+### 8.9 低HDL血症患病风险剂量-反应建模（二分类结局）
+## 8.9.1 线性Logistic剂量反应模型
+logit_linear <- glm(low_hdl ~ DR1TSUGR + RIDAGEYR + RIAGENDR + BMXBMI + DR1TKCAL,
+                    family = binomial(link="logit"), data = df_final)
+newdata_logit <- expand.grid(
+  DR1TSUGR = seq(min(df_final$DR1TSUGR, na.rm=T), max(df_final$DR1TSUGR, na.rm=T), length.out=100),
+  RIDAGEYR = mean(df_final$RIDAGEYR, na.rm=T),
+  BMXBMI = mean(df_final$BMXBMI, na.rm=T),
+  DR1TKCAL = mean(df_final$DR1TKCAL, na.rm=T),
+  RIAGENDR = factor(1)
+)
+pred_prob <- predict(logit_linear, newdata_logit, type = "response", se.fit = TRUE)
+newdata_logit$prob <- pred_prob$fit
+logit_fit <- predict(logit_linear, newdata_logit, type = "link", se.fit = TRUE)
+z95 <- 1.96
+newdata_logit$logit_lwr <- logit_fit$fit - z95 * logit_fit$se.fit
+newdata_logit$logit_upr <- logit_fit$fit + z95 * logit_fit$se.fit
+invlogit <- function(x) exp(x)/(1+exp(x))
+newdata_logit$prob_lwr <- invlogit(newdata_logit$logit_lwr)
+newdata_logit$prob_upr <- invlogit(newdata_logit$logit_upr)
+
+# 线性患病风险曲线绘图
+ggplot(newdata_logit, aes(x=DR1TSUGR, y=prob)) +
+  geom_line(linewidth=1, color="#D62728") +
+  geom_ribbon(aes(ymin=prob_lwr, ymax=prob_upr), alpha=0.2, fill="#D62728") +
+  labs(x="膳食添加糖摄入量(g)", y="校正后低HDL血症发病概率", title="图4 膳食添加糖与低HDL血症患病风险线性关联曲线（Logistic线性模型）") +
+  theme_bw()
+
+## 8.9.2 GAM惩罚样条非线性Logistic模型
+gam_logit <- gam(low_hdl ~ s(DR1TSUGR) + RIDAGEYR + RIAGENDR + BMXBMI + DR1TKCAL,
+                 family = binomial(link = "logit"), data = df_final)
+cat("\nGAM模型平滑项检验结果\n")
+summary(gam_logit)
+plot(gam_logit, main = "图5 膳食添加糖摄入量与低HDL血症发病风险平滑非线性曲线（GAM惩罚样条）")
+
+# 线性Logistic与GAM模型AIC对比
+cat("\nlow_hdl线性Logistic/GAM模型AIC对比\n")
+print(AIC(logit_linear, gam_logit))
+
+# 清空全局临时模型，释放运行内存
+rm(list = ls(pattern = "mod_"))
+gc()
+
+```
+
+## 9.结果解释
+    本研究完成数据预处理、人群基线描述、可视化粗关联、假设检验、分层回归、模型诊断、交互分层、敏感性与非线性剂量反应全套分析，整体结果可概括为5个核心层面：
+
+###9.1 基线人群特征与未校正粗关联特征
+    基线描述与单变量粗关联分析显示，研究人群膳食添加糖摄入呈明显右偏分布，少数个体存在极端高摄入，因此采用三分位数分层策略划分暴露组别。
+    箱线图、趋势图等可视化结果、Kruskal-Wallis非参数组间检验及Spearman秩相关分析 结论相互印证：膳食添加糖与HDL-C呈负相关、与TG呈正相关，随添加糖摄入升高，HDL 逐步下降、TG持续上升；而TC、LDL-C在不同添加糖分层中分布接近，未观察到显著粗关联。
+    同时基线混杂变量存在明显组间不均衡：高BMI、高每日总能量摄入、年轻女性人群在高添加 糖组占比更高。上述人群特征本身可独立影响血脂水平，若不加以校正，会产生混杂偏倚、干扰膳食添加糖与血脂的真实关联判断，因此后续采用分层多因素回归逐层控制混杂。
+
+###9.2 多因素回归核心独立效应
+(1)分析方法设计
+    为消除混杂因素干扰、清晰观察混杂对暴露--血脂关联的影响，统一构构建三层分层校正 回归框架：
+    通过自定义函数实现批量建模，仅需输入结局变量、暴露变量2个参数，自动生成 M1、M2、M3 三套回归公式：
+M1 粗模型：仅纳入膳食添加糖，无任何混杂校正，反映原始粗关联；
+M2 人口学校正模型：校正年龄、性别、种族、教育、家庭收入；
+M3 全校正主模型：在M2基础上额外校正BMI、每日总热量摄入，为本研究核心结论模型。
+    分三类模型开展分析：连续血脂结局多元线性回归、二分类血脂异常 Logistic回归、三分 组分类暴露Logistic回归
+
+(2)连续血脂指标多元线性回归结果
+   以四项原始连续血脂值为结局、连续膳食添加糖为暴露，拟合分层线性模型：
+仅HDL-C与膳食添加糖存在稳定显著负向线性关联，添加糖摄入越高，校正后HDL平均水平越低；TC、TG、LDL-C无明显线性关联；逐步校正BMI、总热量后，添加糖对HDL的负向效应进一步凸显，证明肥胖、总能量摄入 是重要负向混杂，不校正会低估添加糖对HDL的损伤作用。
+
+(3)连续添加糖Logistic回归（血脂正常 / 异常二分类结局）
+    将血脂转换为二分类患病结局，拟合二元Logistic模型，提前创建列表存储所有M3 完整校正模型用于后续汇总、绘制森林图：
+    全校正M3模型显示，膳食添加糖与四类血脂异常均呈显著正向关联（全部 P<0.01）；
+效应存在明显特异性差异：低HDL血症关联强度最高（OR=1.004，95% CI 不包含 1）；高 TG、高TC、高LDL血症对应的OR置信区间跨越无效值1，无统计学关联，仅低HDL血症存在显著正向关联。
+
+(4)三分组分类添加糖Logistic回归（低 / 中 / 高摄入分层）
+    把连续添加糖按三分位数转换为三分类暴露，进一步验证剂量梯度效应：
+完全校正所有混杂后，仅高添加糖摄入会显著升高低HDL血症、高TG血症患病风险；高TC、
+高 LDL血症与三分组添加糖无统计学关联；
+    纳入 BMI、总热量校正后，高添加糖对低HDL、高TG的风险效应明显放大，再次证实体
+重、总能量摄入是关键混杂变量，不校正会低估高糖带来的血脂紊乱风险。
+
+###9.3 模型可靠性验证
+    VIF 检验无多重共线性，Box-Tidwell检验仅BMI存在微弱非线性；HL拟合优度、ROC-AUC 提示模型预测效果良好；剔除添加糖 1%极端值后重新拟合，主效应无改变，核心结论稳健可 靠。
+
+###9.4 人群效应修饰（交互与亚组分层）
+    添加糖与 BMI、性别存在显著交互作用：肥胖人群、女性群体中，添加糖升高血脂异常风险的作用更强；性别分层回归进一步印证女性对添加糖的血脂损伤更敏感，是膳食干预重点人群。
+
+###9.5 非线性阈值剂量反应
+1.HDL-C 连续结局（线性回归 vs 自然三次样条 ns (df=4)）
+(1) 图形直观趋势
+线性模型：校正混杂后，膳食添加糖与 HDL-C 呈严格持续下降直线关系，添加糖每升高，
+HDL 浓度匀速降低，置信区间随摄入量增大持续拓宽，高摄入区间预测不确定性上升。
+自然三次样条模型：关联并非简单直线，呈现先快速下降、500g左右到达谷底后轻微回升 的曲线形态；低摄入区间 HDL下降幅度更大，高摄入区间抑制效应放缓，提示存在阈值拐点。
+
+(2) 模型拟合检验（AIC+ANOVA）
+AIC 对比：对比线性回归与自然三次样条模型，二者 AIC 数值高度接近（线性模型 AIC=18218.48，样条模型AIC=18218.05，差值＜2），拟合效果相近；
+ANOVA 检验 P=0.0933，非线性趋势无统计学意义。可视化曲线提示低摄入区间HDL下降速率
+更快，存在轻微拐点效应，但该非线性特征未达到统计学显著水平。
+在报告整体人群平均关联时采用线性模型，同时附图展示非线性平滑曲线供参考。
+
+2.低 HDL 血症二分类结局（线性 Logistic vs GAM 广义加性模型）
+(1) 图形直观趋势
+线性 Logistic：发病概率随添加糖摄入匀速单调上升，全程无放缓、拐点；
+GAM 平滑曲线：logit 尺度下曲线先快速上升，约 400–500g达到峰值后缓慢回落，提示风
+险增长存在饱和拐点，超出临界摄入后风险增幅下降。
+
+(2) 模型统计参数与检验
+平滑项检验：s(DR1TSUGR) edf=3.286，卡方检验P=0.000205＜0.001，膳食添加糖对低 HDL 发病风险的非线性作用具有极强统计学意义；
+AIC对比：GAM 模型 AIC=2484.502 低于线性 Logistic 模型2485.779,非线性模型拟合
+显著更优；校正混杂后，年龄、女性、高 BMI、总热量均为低 HDL 血症独立影响因素。
+
+## 10.局限性
+（1）研究设计固有局限：横断面无法推断因果
+    本研究为横断面研究，仅能捕捉某一时间点膳食添加糖摄入与血脂水平的关联，不存在时间先后时序证据，无法确定因果关系：不能判定是高添加糖摄入导致血脂紊乱，也无法排除血脂异常人群主动改变控糖饮食习惯的反向因果可能。
+    缺乏长期随访，无法观察长期持续高糖摄入对血脂的累积损伤，也不能反映膳食添加糖干预后血脂指标的动态改善变化。
+    
+（2）膳食暴露测量偏倚
+    膳食数据依托 24 小时膳食回顾法收集，属于回忆式调查，存在回忆偏倚：受试者容易低估 / 高估含糖饮料、甜点、加工零食的糖分摄入，造成暴露变量测量误差。
+    仅统计总膳食添加糖摄入量，未区分添加糖来源（含糖饮料、烘焙糕点、加工调味品等），无法分析不同种类添加糖对血脂的差异化影响；同时未区分果糖、葡萄糖、蔗糖组分，缺少糖代谢通路层面的细分探索。
+    无膳食频次、长期饮食习惯数据，24h回顾仅代表单日摄入，难以反映个体长期稳定的加糖饮食模式。
+    
+（3）混杂变量控制仍存在遗漏
+    仅校正人口学、BMI、总热量基础混杂，未纳入其他重要血脂相关混杂：生活方式：体力活动水平、吸烟、饮酒；基础疾病：糖尿病、高血压、脂肪肝、慢性肾病；药物使用：降脂药、降糖药、激素类药物，上述因素均会直接干扰血脂水平，未纳入模型校正，仍存在残余混杂。
+    未纳入膳食纤维、饱和脂肪、不饱和脂肪等其他膳食组分，膳食整体模式对血脂的协同、拮抗效应无法剥离。
+
+（4）统计与样本层面局限
+    研究基于美国 NHANES人群数据库，人群种族、饮食结构、生活习惯与国内居民差异较大，研究结论外推至中国人群存在局限性，结论代表性有限。
+    剂量反应分析仅覆盖现有样本摄入区间，对于极高添加糖摄入、极低摄入人群样本量偏少，曲 线两端置信区间宽，阈值拐点的参考价值受限；非线性分析中，HDL-C的样条非线性趋势无统计学意义，仅低HDL患病风险存在显著非线性，无法全面揭示四类血脂指标的阈值效应；
+仅探索交互修饰效应（性别、BMI），未开展分层内部交互、多变量联合交互分析，人群异质性挖掘不够充分。
+
+ （5）指标与分析维度局限
+    血脂仅检测 TC、TG、HDL-C、LDL-C四项基础指标，未检测脂蛋白a、小而密低密度脂蛋白、载脂蛋白等更敏感的致动脉粥样硬化血脂亚组分，无法精细揭示添加糖对脂质代谢的深层损伤。
+    未开展亚组分层细分（年龄分层、种族分层、是否代谢疾病分层），仅做性别分层，不同特征人群的效应差异挖掘不足。
+
+## 11.个人总结
+（1）学习 R 语言的困难
+    初学阶段我遇到了不少阻碍。刚接触R时，我无法理解函数、向量、数据框的底层逻辑，分不清$、[]、%>%管道符的用法；做基础的数据读取、筛选、合并时代码频繁报错，我也看不懂报错提示，难以区分问题出在文件路径、变量名还是数据格式上，哪怕简单的数据清洗工作都要反复调试很久。
+    正式开展统计分析后，我又遇到了更多难题。最开始做分层回归、循环统计时，我不会自定义函数、循环批量运算，四类血脂指标、三层校正模型只能逐段复制粘贴代码，不仅工作量巨大，还很容易出现变量名写错、参数设置不统一的问题。同时我对多元分层校正、Logistic 回归、样条非线性模型、GAM广义加性模型都很陌生，不清楚各类模型的适用场景、配套函数，也不知道完整分析代码该如何搭建。使用ggplot2绘图时，坐标轴、图例、标题、置信区间配色、分段调节等操作都不熟练，绘制出的箱线图、趋势散点图达不到学术期刊规范要求。
+    
+（2）通过本次课程掌握的 R 语言基本实操能力
+    课程采用随机抽查汇报的考核形式，客观上督促我稳步推进学习进度。我需要在每节课前后按时完成配套学习任务，吃透所有内容，才能在抽查汇报时完整讲清自己的分析思路与结果。
+    学习过程中，我结合学习通网课、网络教程掌握基础知识，借助AI辅助读懂代码逻辑，课上也会主动和老师、同学交流疑难问题，老师都会耐心为我们答疑解惑。经过持续练习，如今我可以独立完成整套数据预处理工作：自主读取数据库文件、多表内连接合并，批量统计缺失值、识别并处理极端值；能将连续暴露变量三分层分组、把血脂指标转换为二分类结局，批量统一分类变量参照组，完成基线数据整理。
+    建模分析方面，我熟练使用循环批量完成多指标线性、Logistic回归，清晰理解三层逐步校正回归的设计逻辑，能够分层控制人口学、代谢类混杂因素；熟练运用lm、glm构建线性回归、二元 Logistic 回归模型，准确解读回归系数、OR值、置信区间与P值；掌握自然三次样条、GAM 广义加性模型两种非线性剂量反应分析方法，可通过AIC、ANOVA检验对比线性与非线性模型的拟合效果，客观选择最优模型。绘图上，我能使用ggplot2绘制符合学术标准的各类可视化图表。
+    但我在 RMarkdown 一体化文档管理方面仍存在不足，暂时无法熟练实现代码、图表、论文文字的统一整合输出。
+    
+（3）本次选题获得的收获
+    完整走完膳食添加糖与血脂关联横断面研究全部分析流程后，我得出了完整且有统计学支撑的研究结论：在校正全部混杂因素后，三分组分类添加糖Logistic回归中，膳食添加糖仅与低HDL、高TG血症存在独立正向关联，存在明显剂量梯度效应，对TC、LDL无独立影响；BMI、性别存在效应修饰作用，肥胖、女性人群中添加糖对血脂的损伤更强。线性与非线性模型对比显示，HDL-C整体关联可采用线性模型描述，而低HDL发病风险存在显著非线性阈值特征。
+    本次课题属于典型营养流行病学横断面研究，完整走完该类研究从数据处理、单变量探索、分层多因素回归、非线性剂量反应、交互亚组分析到稳健性检验、图表汇总的全标准流程，和我营养流行病学专业高度契合。依托这次课题实操R语言，我掌握了如何分析营养人群数据，将课堂上关于混杂偏倚控制、膳食危险因素评估、慢性代谢相关结局分析的理论知识，在真实人群数据中完成实操验证，让我切实感受到R语言作为数据分析工具高效便捷的优势，也深刻认识到学好R对开展流行病学科研的必要性。
+    

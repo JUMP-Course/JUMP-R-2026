@@ -1,0 +1,9 @@
+model,strata,variable,OR,CI_low,CI_high,p_value
+BMI group + age,Female,bmi_group_cleanUnderweight,1.27,0.47,3.08,0.6116
+BMI group + age,Female,bmi_group_cleanOverweight,1.25,0.94,1.66,0.13
+BMI group + age,Female,bmi_group_cleanObesity,1.47,1.13,1.92,0.0043
+BMI group + age,Female,age,1.08,1.07,1.08,0
+BMI group + age,Male,bmi_group_cleanUnderweight,1.79,0.78,3.87,0.1511
+BMI group + age,Male,bmi_group_cleanOverweight,1.11,0.85,1.46,0.4263
+BMI group + age,Male,bmi_group_cleanObesity,1.49,1.16,1.94,0.0024
+BMI group + age,Male,age,1.04,1.04,1.05,0
