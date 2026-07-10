@@ -81,19 +81,19 @@ boxplot(clean_st, main="屏幕时长箱线图（圆点为异常值）")
 # 每一列缺失数量统计
 colSums(is.na(data))# 1. 分别标记三类样本是否要剔除（独立判断，互不干扰）
 # i4剔除条件：i4缺失 或 i4<3 或 i4>9.9
-drop_i4 <- is.na(data_raw$i4) | data_raw$i4 < 3 | data_raw$i4 > 9.9
+drop_i4 <- is.na(data$i4) | data$i4 < 3 | data$i4 > 9.9
 # screentime剔除条件：screentime缺失 或 <0 或 >4.5
-drop_st <- is.na(data_raw$screentime) | data_raw$screentime < 0 | data_raw$screentime > 4.5
+drop_st <- is.na(data$screentime) | data$screentime < 0 | data$screentime > 4.5
 # n18剔除条件：n18缺失 或 <0 或 >999 或 >360
-drop_n18 <- is.na(data_raw$n18) | data_raw$n18 < 0 | data_raw$n18 > 999 | data_raw$n18 > 360
+drop_n18 <- is.na(data$n18) | data$n18 < 0 | data$n18 > 999 | data$n18 > 360
 
 # 2. 最终保留：三个变量全都不满足剔除条件的行
 keep_row <- !drop_i4 & !drop_st & !drop_n18
-data_clean <- data_raw[keep_row, ]
+data_clean <- data[keep_row, ]
 
 # 3. 清洗日志（单独统计每个变量各自要删掉多少，不受其他变量影响）
 cat("===== 各变量单独剔除统计（独立计算，互不干扰）=====\n")
-cat("原始总样本：", nrow(data_raw), "\n")
+cat("原始总样本：", nrow(data), "\n")
 cat("仅因i4需剔除的样本数：", sum(drop_i4), "\n")
 cat("仅因screentime需剔除的样本数：", sum(drop_st), "\n")
 cat("仅因n18需剔除的样本数：", sum(drop_n18), "\n")
@@ -108,18 +108,18 @@ range(data_clean$screentime)
 range(data_clean$n18)
 
 # 5. 清洗前后对比绘图数据准备（绘图需提前加载tidyr、ggplot2）
-raw_sub <- data_raw[,c("i4","screentime","n18")]
+raw_sub <- data[,c("i4","screentime","n18")]
 raw_sub$组别 <- "清洗前(原始)"
 clean_sub <- data_clean[,c("i4","screentime","n18")]
 clean_sub$组别 <- "清洗后"
-# 合并+转长格式
-compare_df <- rbind(raw_sub, clean_sub) %>% pivot_longer(-组别)
+
 # 加载绘图包（第一次运行先执行安装：install.packages(c("tidyr","ggplot2"))）
 library(tidyr)
+library(tableone)
 library(ggplot2)
 
 # 构造对比数据集
-raw_sub <- data_raw[, c("i4","screentime","n18")]
+raw_sub <- data[, c("i4","screentime","n18")]
 raw_sub$组别 <- "清洗前(原始)"
 
 clean_sub <- data_clean[, c("i4","screentime","n18")]
@@ -135,9 +135,8 @@ ggplot(compare_df, aes(x = 数值, fill = 组别)) +
   labs(title = "i4 / screentime / n18 清洗前后分布对比", x = "变量取值", y = "频数") +
   scale_fill_manual(values = c("salmon","steelblue")) +
 
-library(tableone)
-# 导入数据！！
-dat <- read.csv("C:/Users/ASUS/Desktop/data.csv")
+
+
 # 1. 构建分析变量向量
 
 vars <- c("sum_nssi", "i4", "screentime", "n18","s4","n1","n14","n15","n16") 
@@ -238,3 +237,87 @@ p_trend <- ggplot(dat,aes(x=screentime,y=sum_nssi))+
   theme_bw()
 print(p_trend)
 ggsave("3_趋势散点图.png",p_trend,width=8,height=5,dpi=300)
+# 仅首次运行安装
+install.packages(c("ggplot2","dplyr","tableone","nnet","emmeans"))
+library(ggplot2)
+library(dplyr)
+library(tableone)
+
+# 导入数据
+dat <- read.csv("C:/Users/ASUS/Desktop/data.csv", fileEncoding = "UTF-8")
+# 生成自伤总分
+dat <- dat %>% mutate(sum_nssi = n96+n97+n98+n99+n100+n103+n104+n105+n106+n107+n108+field1)
+
+# sum_nssi > 12 = 1（自伤组）；sum_nssi ≤12 = 0（非自伤组）
+dat <- dat %>% mutate(nssi_case = ifelse(sum_nssi > 12, 1, 0))
+# 查看两组人数分布，检验分组是否成功
+table(dat$nssi_case)
+p_t <- ggplot(dat,aes(x=factor(nssi_case),y=sum_nssi,fill=factor(nssi_case)))+
+  geom_boxplot(alpha=0.7)+
+  labs(x="分组（0=非自伤，1=自伤）",y="NSSI自伤总分",title="自伤/非自伤人群总分组间对比")+
+  scale_x_discrete(labels = c("非自伤(≤12分)","自伤(＞12分)"))+
+  theme_bw()+theme(legend.position = "none")
+print(p_t)
+ggsave("自伤分组t检验箱线图.png",p_t,width=7,height=5,dpi=300)
+# 独立样本t检验：比较两组总分均值差异
+t_res <- t.test(sum_nssi ~ nssi_case, data = dat)
+print(t_res)
+
+# 适用条件核查
+# 1.正态性
+shapiro.test(dat$sum_nssi[dat$nssi_case==0])
+shapiro.test(dat$sum_nssi[dat$nssi_case==1])
+# 2.方差齐性
+var.test(sum_nssi ~ nssi_case, data = dat)
+# 多因素logistic，校正混杂变量（示例：i4睡眠、screentime屏幕时长、s4性别）
+multi_logit <- glm(nssi_case ~ i4 + screentime + s4,
+                   data = dat, family = binomial(link = "logit"))
+summary(multi_logit)
+data$n23_var[data$n23 == 1] <- 0
+data$n23_var[data$n23 == 2] <- 0.5
+data$n23_var[data$n23 == 3] <- 1.5
+data$n23_var[data$n23 == 4] <- 2.5
+data$n23_var[data$n23 == 5] <- 3.5
+data$n23_var[data$n23 == 6] <- 4.5
+
+# 第三步：核对转换结果（原始列+新列前20行）
+head(data[, c("n23", "n23_var")], 20)
+
+# 第四步：交叉表校验映射是否正确
+table(data$n23, data$n23_var)
+
+# 第五步：查看转换后时长分布
+summary(data$n23_var)
+
+# 1. 强制把n24转为数值型，避免字符匹配失败
+data$n24 <- as.numeric(data$n24)
+
+# 2. 初始化新列，填充NA
+data$n24_var <- NA
+
+# 3. 分类逐条映射赋值
+data$n24_var[data$n24 == 1] <- 0
+data$n24_var[data$n24 == 2] <- 0.5
+data$n24_var[data$n24 == 3] <- 1.5
+data$n24_var[data$n24 == 4] <- 2.5
+data$n24_var[data$n24 == 5] <- 3.5
+data$n24_var[data$n24 == 6] <- 4.5
+
+# 4. 抽查前20行转换结果
+head(data[, c("n24", "n24_var")], 20)
+
+# 5. 交叉表校验映射关系，同时展示缺失值
+table(data$n24, data$n24_var, useNA = "ifany")
+
+# 新建屏幕时长 screentime = (n23_var*5 + n24_var*2)/7
+data$screentime <- (data$n23_var * 5 + data$n24_var * 2) / 7
+
+# 输出OR值+95%置信区间（论文标准结果）
+exp(cbind(OR = coef(multi_logit), confint(multi_logit)))
+p_logit <- ggplot(dat,aes(x=screentime,y=nssi_case))+
+  geom_jitter(width=0,height=0.05,alpha=0.4)+
+  geom_smooth(method="glm",method.args=list(family="binomial"),color="red")+
+  labs(x="每日屏幕使用时长",y="发生自伤（总分＞12）概率",title="屏幕时长与自伤发生风险趋势")+
+  theme_bw()
+print(p_logit)
+ggsave("logistic自伤风险趋势图.png",p_logit,width=7,height=5,dpi=300)
