@@ -321,3 +321,48 @@ p_logit <- ggplot(dat,aes(x=screentime,y=nssi_case))+
   theme_bw()
 print(p_logit)
 ggsave("logistic自伤风险趋势图.png",p_logit,width=7,height=5,dpi=300)
+# 加载包
+library(ggplot2)
+library(tableone)
+library(broom)    # 提取模型系数、CI、P
+library(broom.mixed)
+library(gt)       # 美观表格输出
+library(AICcmodavg)
+
+# 1. 拟合logistic回归（自变量：screentime、i4、n13等，结局nssi_case）
+fit <- glm(nssi_case ~ screentime + i4 + n13 + s4, 
+           data = dat, 
+           family = binomial(link = "logit"))
+
+# 2. 提取完整结果：β系数、95%CI、P值
+res_raw <- tidy(fit, conf.int = TRUE)
+res_raw
+
+# 3. 换算OR（exp(β)）+ OR的95%CI，整理成论文标准格式
+res_or <- res_raw %>%
+  mutate(
+    OR = exp(estimate),          # β指数化=OR值
+    OR_low = exp(conf.low),      # OR下限95%CI
+    OR_high = exp(conf.high),    # OR上限95%CI
+    beta = estimate,             # 原始回归系数β
+    beta_low = conf.low,
+    beta_high = conf.high,
+    p_value = p.value
+  ) %>%
+  select(term, beta, beta_low, beta_high, OR, OR_low, OR_high, p_value)
+
+# 4. 格式化CI文本（统一展示：OR(95%CI)）
+res_table <- res_or %>%
+  mutate(
+    OR_CI = paste0(sprintf("%.2f",OR), "(", sprintf("%.2f",OR_low), "-", sprintf("%.2f",OR_high), ")"),
+    beta_CI = paste0(sprintf("%.2f",beta), "(", sprintf("%.2f",beta_low), "-", sprintf("%.2f",beta_high), ")"),
+    p_value = ifelse(p_value<0.001, "<0.001", sprintf("%.3f",p_value))
+  ) %>%
+  select(变量=term, 回归系数β=beta_CI, OR值(95%CI)=OR_CI, P值=p_value)
+
+# 打印干净结果表（汇报直接展示）
+print(res_table)
+
+# 5. 模型评价指标（AIC、BIC、对数似然）
+model_eval <- glance(fit)
+print(model_eval[,c("AIC","BIC","logLik","nobs")])
