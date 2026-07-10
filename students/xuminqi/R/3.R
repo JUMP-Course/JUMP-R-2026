@@ -134,17 +134,24 @@ ggplot(compare_df, aes(x = 数值, fill = 组别)) +
   facet_grid(变量 ~ 组别, scales = "free_x") +
   labs(title = "i4 / screentime / n18 清洗前后分布对比", x = "变量取值", y = "频数") +
   scale_fill_manual(values = c("salmon","steelblue")) +
+
 library(tableone)
 # 导入数据！！
 dat <- read.csv("C:/Users/ASUS/Desktop/data.csv")
 # 1. 构建分析变量向量
 
-vars <- c("sum_nssi", "i4", "screentime", "n18") 
+vars <- c("sum_nssi", "i4", "screentime", "n18","s4","n1","n14","n15","n16") 
 # i4、n18、screentime = 连续变量
-# sum_nssi = 分类变量
-# 2. 创建Table 1
+# sum_nssi、s4、n1、n14、n15、n16 = 分类变量
+
+ 2.# 分组变量
+group_var <- "s4"
+# 2. 定义所有分类变量
+factor_list <- c("s4","n1","n14","n15","n16")
+#创建Table 1
 table1 <- CreateTableOne(
   vars = vars,
+  strata = group_var,
    data = dat
 )
 # 3. 查看原始结果
@@ -155,14 +162,13 @@ print(table1)
 # factorVars：指定哪些是分类变量
 table1_final <- print(
   table1,
-  factorVars = c("sum_nssi"), # 声明分类变量
+  factorVars = c("sum_nssi","s4","n1","n14","n15","n16"), # 声明分类变量
   contDigits = 1,    # 连续变量小数位数
   catDigits = 1,     # 分类变量百分比小数
   pDigits = 3,       # P值保留3位
   showPvalues = TRUE,# 是否展示组间比较P值
   test = TRUE        # 开启组间检验
 )
-
 # 导出到csv，直接粘贴Word做三线表
 write.csv(table1_final, "基线特征表.csv", row.names = TRUE)
 # 1. 首次运行安装包（只需要运行一次，后续可注释掉）
