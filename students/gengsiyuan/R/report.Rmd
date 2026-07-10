@@ -344,9 +344,10 @@ cat("贫困收入比 P值:", format(pir_p, scientific = FALSE, digits = 4), "\n"
 
 ## 6.3 加权基线特征
 
-### 表2. 研究人群加权基线特征
+### 表2. 研究人群加权基线特征及组间比较
 
 ```{r table1}
+# 创建基础表格
 tbl_base <- tbl_svysummary(
   svy_design,
   by = hashimoto_grp,
@@ -370,15 +371,9 @@ tbl_base <- tbl_svysummary(
   )
 ) %>%
   modify_header(all_stat_cols() ~ "**{level} (加权 n = {n})**") %>%
-  modify_caption("表2. 研究人群加权基线特征") %>%
   bold_labels()
 
-tbl_base
-```
-
-### 表3. 研究人群加权基线特征及组间比较
-
-```{r table2}
+# ========== 定义P值数据框 ==========
 p_df <- data.frame(
   variable = c("RIDAGEYR", "BMXBMI", "INDFMPIR", "URXUCD_cr",
                "sex", "race", "education", "smoke", "hypertension"),
@@ -390,6 +385,7 @@ p_df <- data.frame(
             chisq_table$p_value[chisq_table$variable == "hypertension"])
 )
 
+# 添加P值（直接生成最终表2）
 tbl_final <- tbl_base %>%
   modify_table_body(
     ~ .x %>%
@@ -406,7 +402,8 @@ tbl_final <- tbl_base %>%
     }
   ) %>%
   modify_header(p.value ~ "**P值**") %>%
-  modify_caption("表3. 研究人群加权基线特征及组间比较")
+  modify_caption("表2. 研究人群加权基线特征及组间比较") %>%
+  bold_labels()
 
 tbl_final
 ```
@@ -479,7 +476,7 @@ logistic_results <- bind_rows(
   mutate(across(c(OR, CI_lower, CI_upper), ~ round(., 3)),
          P_value = round(P_value, 4))
 
-knitr::kable(logistic_results, caption = "表4.尿镉与桥本甲状腺炎的多因素Logistic回归")
+knitr::kable(logistic_results, caption = "表3.尿镉与桥本甲状腺炎的多因素Logistic回归")
 ```
 
 ## 6.6 剂量-反应分析
@@ -539,7 +536,7 @@ trend_line <- data.frame(
 )
 
 dose_response_table <- bind_rows(q_results, trend_line)
-knitr::kable(dose_response_table, caption = "表5.尿镉与桥本甲状腺炎的剂量-反应分析")
+knitr::kable(dose_response_table, caption = "表4.尿镉与桥本甲状腺炎的剂量-反应分析")
 ```
 *注：Q1为参照组；趋势检验将四分位等级（1、2、3、4）作为连续变量纳入模型。*
 
@@ -641,7 +638,7 @@ subgroup_results <- bind_rows(
   ) %>% 
   select(Subgroup, OR_CI, P)
 
-knitr::kable(subgroup_results, caption = "表6. 亚组分层分析结果")
+knitr::kable(subgroup_results, caption = "表5. 亚组分层分析结果")
 ```
 
 ## 6.8 交互作用检验
@@ -688,7 +685,7 @@ interaction_results <- data.frame(
   Interaction = c("年龄 × 尿镉", "性别 × 尿镉"),
   P_value = c(format_p(age_inter_p), format_p(sex_inter_p))
 )
-knitr::kable(interaction_results, caption = "表7. 交互作用检验结果")
+knitr::kable(interaction_results, caption = "表6. 交互作用检验结果")
 ```
 
 ## 6.9 亚组森林图
