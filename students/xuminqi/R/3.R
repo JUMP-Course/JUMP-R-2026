@@ -165,3 +165,25 @@ table1_final <- print(
 
 # 导出到csv，直接粘贴Word做三线表
 write.csv(table1_final, "基线特征表.csv", row.names = TRUE)
+# 1. 首次运行安装包（只需要运行一次，后续可注释掉）
+install.packages("corrplot", dependencies = TRUE, update.packages = FALSE)
+# 1. 安装survminer（首次只运行一次）
+install.packages("survminer", dependencies = TRUE, update.packages = FALSE)
+
+library(ggplot2)
+library(dplyr)
+library(corrplot)   # 相关图
+library(survival)
+library(survminer)
+
+# screentime屏幕时长分布
+ggplot(dat,aes(x = screentime))+
+  geom_histogram(bins=30,fill="steelblue",alpha=0.7)+
+  labs(
+    x = "每日屏幕使用时长(min)",
+    y = "频数",
+    title = "研究人群屏幕使用时长分布直方图"
+  )+
+  theme_bw()
+cor_mat <- dat %>% select(sum_nssi,screentime,i4,n18) %>% cor(use="complete.obs")
+corrplot(cor_mat,method="color",addCoef.col="black",tl.col="black")
