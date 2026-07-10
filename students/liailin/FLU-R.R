@@ -595,3 +595,285 @@ results_summary <- data.frame(
 )
 print(results_summary)
 
+# 补充分析：稳健性 + 亚组差异 + 模型诊断
+install.packages(c("car",type = "binary"))
+library(boot)      # Bootstrap 重抽样
+library(car)       # 模型诊断
+library(lmtest)    # 异方差/自相关检验
+library(broom)     # 整洁模型输出
+
+# ============================================================
+# 一、稳健性检验（Bootstrap 验证）
+# ============================================================
+
+cat("\n========== 1. 稳健性检验 ==========\n")
+cat("【目的】验证时间趋势结果是否受抽样波动影响\n")
+
+# 1.1 定义 Bootstrap 函数
+set.seed(123)  # 确保结果可重复
+
+# 南方 ILI% 的 Bootstrap 函数
+boot_south <- function(data, indices) {
+  d <- data[indices, ]
+  m <- lm(`南方ILI(%)` ~ 年份, data = d)
+  return(coef(m)[2])  # 返回年份系数
+}
+
+# 北方 ILI% 的 Bootstrap 函数
+boot_north <- function(data, indices) {
+  d <- data[indices, ]
+  m <- lm(`北方ILI(%)` ~ 年份, data = d)
+  return(coef(m)[2])
+}
+
+# 执行 Bootstrap（各1000次）
+boot_south_res <- boot(df_clean_core, boot_south, R = 1000)
+boot_north_res <- boot(df_clean_core, boot_north, R = 1000)
+
+# 输出结果
+cat("\n--- 南方 ILI% 时间趋势 Bootstrap ---\n")
+cat("原始 β 系数:", round(boot_south_res$t0, 4), "\n")
+cat("Bootstrap 标准误:", round(sd(boot_south_res$t), 4), "\n")
+cat("Bootstrap 95% CI: [", 
+    round(boot.ci(boot_south_res, type = "perc")$percent[4], 4), 
+    ", ", 
+    round(boot.ci(boot_south_res, type = "perc")$percent[5], 4), 
+    "]\n")
+
+cat("\n--- 北方 ILI% 时间趋势 Bootstrap ---\n")
+cat("原始 β 系数:", round(boot_north_res$t0, 4), "\n")
+cat("Bootstrap 标准误:", round(sd(boot_north_res$t), 4), "\n")
+cat("Bootstrap 95% CI: [", 
+    round(boot.ci(boot_north_res, type = "perc")$percent[4], 4), 
+    ", ", 
+    round(boot.ci(boot_north_res, type = "perc")$percent[5], 4), 
+    "]\n")
+
+# 判断稳健性
+south_ci <- boot.ci(boot_south_res, type = "perc")$percent[4:5]
+north_ci <- boot.ci(boot_north_res, type = "perc")$percent[4:5]
+
+cat("\n【稳健性判断】\n")
+cat("南方: 95% CI", ifelse(south_ci[1] * south_ci[2] > 0, "不包含0 ✓", "包含0 ✗"), 
+    "→ 趋势", ifelse(south_ci[1] * south_ci[2] > 0, "稳健", "不稳定"), "\n")
+cat("北方: 95% CI", ifelse(north_ci[1] * north_ci[2] > 0, "不包含0 ✓", "包含0 ✗"), 
+    "→ 趋势", ifelse(north_ci[1] * north_ci[2] > 0, "稳健", "不稳定"), "\n")
+
+# ============================================================
+# 二、敏感性分析（排除异常年份2024年）
+# ============================================================
+
+cat("\n========== 2. 敏感性分析 ==========\n")
+cat("【目的】排除2024年异常高峰后，趋势是否仍然存在？\n")
+
+# 排除2024年
+df_sens <- df_clean_core %>% filter(年份 != 2024)
+
+cat("原始数据:", nrow(df_clean_core), "行\n")
+cat("排除2024年后:", nrow(df_sens), "行（删除", 
+    nrow(df_clean_core) - nrow(df_sens), "行）\n")
+
+# 重新拟合模型
+model_south_sens <- lm(`南方ILI(%)` ~ 年份, data = df_sens)
+model_north_sens <- lm(`北方ILI(%)` ~ 年份, data = df_sens)
+
+# 对比结果
+cat("\n--- 南方 ILI% 趋势对比 ---\n")
+cat("含2024年: β =", round(coef(model_south)[2], 4), 
+    ", p =", format(summary(model_south)$coefficients[2, 4], scientific = TRUE, digits = 4), "\n")
+cat("排除2024年: β =", round(coef(model_south_sens)[2], 4), 
+    ", p =", format(summary(model_south_sens)$coefficients[2, 4], scientific = TRUE, digits = 4), "\n")
+
+cat("\n--- 北方 ILI% 趋势对比 ---\n")
+cat("含2024年: β =", round(coef(model_north)[2], 4), 
+    ", p =", format(summary(model_north)$coefficients[2, 4], scientific = TRUE, digits = 4), "\n")
+cat("排除2024年: β =", round(coef(model_north_sens)[2], 4), 
+    ", p =", format(summary(model_north_sens)$coefficients[2, 4], scientific = TRUE, digits = 4), "\n")
+
+# 判断敏感性
+south_change <- abs(coef(model_south)[2] - coef(model_south_sens)[2])
+north_change <- abs(coef(model_north)[2] - coef(model_north_sens)[2])
+
+cat("\n【敏感性判断】\n")
+cat("南方 β 变化:", round(south_change, 4), 
+    ifelse(south_change < 0.02, " → 变化小，结果稳健 ✓", " → 变化大，结果敏感 ⚠️"), "\n")
+cat("北方 β 变化:", round(north_change, 4), 
+    ifelse(north_change < 0.02, " → 变化小，结果稳健 ✓", " → 变化大，结果敏感 ⚠️"), "\n")
+
+# ============================================================
+# 三、亚组分析（高流行年 vs 低流行年）
+# ============================================================
+
+cat("\n========== 3. 亚组分析 ==========\n")
+cat("【目的】不同流行强度年份，甲流占比是否有差异？\n")
+
+# 计算各年份平均 ILI%
+yearly_avg <- df_clean_core %>%
+  group_by(年份) %>%
+  summarise(年均ILI = mean(`南方ILI(%)`, na.rm = TRUE))
+
+cat("\n各年份平均 ILI%:\n")
+print(yearly_avg)
+
+# 定义高流行年 vs 低流行年
+high_years <- yearly_avg %>% arrange(desc(年均ILI)) %>% head(3) %>% pull(年份)
+low_years <- yearly_avg %>% arrange(年均ILI) %>% head(3) %>% pull(年份)
+
+cat("\n高流行年（前3）:", paste(high_years, collapse = ", "), "\n")
+cat("低流行年（后3）:", paste(low_years, collapse = ", "), "\n")
+
+# 标记流行强度
+df_clean_core <- df_clean_core %>%
+  mutate(
+    流行强度 = case_when(
+      年份 %in% high_years ~ "高流行",
+      年份 %in% low_years ~ "低流行",
+      TRUE ~ "中等"
+    ),
+    流行强度 = factor(流行强度, levels = c("低流行", "中等", "高流行"))
+  )
+
+# 比较不同流行强度的甲流占比
+cat("\n--- 不同流行强度甲流占比描述 ---\n")
+subgroup_summary <- df_clean_core %>%
+  group_by(流行强度) %>%
+  summarise(
+    n_周次 = n(),
+    甲流占比_均值 = round(mean(`甲流占阳性比(%)`, na.rm = TRUE), 2),
+    甲流占比_中位数 = round(median(`甲流占阳性比(%)`, na.rm = TRUE), 2),
+    甲流占比_SD = round(sd(`甲流占阳性比(%)`, na.rm = TRUE), 2)
+  )
+print(subgroup_summary)
+
+# 统计检验（高 vs 低）
+high_data <- df_clean_core %>% filter(流行强度 == "高流行") %>% pull(`甲流占阳性比(%)`)
+low_data <- df_clean_core %>% filter(流行强度 == "低流行") %>% pull(`甲流占阳性比(%)`)
+
+if (length(high_data) > 0 & length(low_data) > 0) {
+  subgroup_test <- wilcox.test(high_data, low_data)
+  cat("\n--- 高流行 vs 低流行 甲流占比比较 ---\n")
+  cat("W =", subgroup_test$statistic, "\n")
+  cat("p =", format(subgroup_test$p.value, scientific = TRUE, digits = 4), "\n")
+  if (subgroup_test$p.value < 0.05) {
+    cat("结论：高流行年甲流占比显著高于低流行年 ✓\n")
+  } else {
+    cat("结论：高流行年与低流行年甲流占比无显著差异\n")
+  }
+}
+
+# ============================================================
+# 四、模型诊断（残差检验）
+# ============================================================
+
+cat("\n========== 4. 模型诊断 ==========\n")
+cat("【目的】检查线性回归模型是否满足基本假设\n")
+
+# 4.1 Durbin-Watson 检验（自相关）
+cat("\n--- Durbin-Watson 自相关检验 ---\n")
+dw_south <- dwtest(model_south)
+dw_north <- dwtest(model_north)
+
+cat("南方模型: DW =", round(dw_south$statistic, 4), 
+    ", p =", format(dw_south$p.value, scientific = TRUE, digits = 4), "\n")
+cat("北方模型: DW =", round(dw_north$statistic, 4), 
+    ", p =", format(dw_north$p.value, scientific = TRUE, digits = 4), "\n")
+
+cat("\n【自相关判断】DW ≈ 2 表示无自相关\n")
+cat("南方 DW =", round(dw_south$statistic, 4), 
+    ifelse(abs(dw_south$statistic - 2) < 0.5, " → 可接受 ✓", " → 需注意 ⚠️"), "\n")
+cat("北方 DW =", round(dw_north$statistic, 4), 
+    ifelse(abs(dw_north$statistic - 2) < 0.5, " → 可接受 ✓", " → 需注意 ⚠️"), "\n")
+
+# 4.2 Breusch-Pagan 检验（异方差）
+cat("\n--- Breusch-Pagan 异方差检验 ---\n")
+bp_south <- bptest(model_south)
+bp_north <- bptest(model_north)
+
+cat("南方模型: BP =", round(bp_south$statistic, 4), 
+    ", p =", format(bp_south$p.value, scientific = TRUE, digits = 4), "\n")
+cat("北方模型: BP =", round(bp_north$statistic, 4), 
+    ", p =", format(bp_north$p.value, scientific = TRUE, digits = 4), "\n")
+
+cat("\n【异方差判断】p > 0.05 表示方差齐性\n")
+cat("南方: p =", format(bp_south$p.value, scientific = TRUE, digits = 4),
+    ifelse(bp_south$p.value > 0.05, " → 方差齐性 ✓", " → 存在异方差 ⚠️"), "\n")
+cat("北方: p =", format(bp_north$p.value, scientific = TRUE, digits = 4),
+    ifelse(bp_north$p.value > 0.05, " → 方差齐性 ✓", " → 存在异方差 ⚠️"), "\n")
+
+# 4.3 绘制模型诊断图
+cat("\n--- 模型诊断图（南方模型）---\n")
+par(mfrow = c(2, 2))
+plot(model_south)
+par(mfrow = c(1, 1))
+
+# ============================================================
+# 五、补充分析结果汇总表
+# ============================================================
+
+cat("\n========== 5. 补充分析结果汇总 ==========\n")
+
+supplement_summary <- data.frame(
+  分析类别 = c(
+    "稳健性(Bootstrap)",
+    "稳健性(Bootstrap)",
+    "敏感性(排除2024)",
+    "敏感性(排除2024)",
+    "亚组分析(流行强度)",
+    "模型诊断(自相关)",
+    "模型诊断(异方差)"
+  ),
+  分析对象 = c(
+    "南方趋势", "北方趋势",
+    "南方趋势", "北方趋势",
+    "高vs低流行年",
+    "南方模型", "南方模型"
+  ),
+  关键结果 = c(
+    paste0("95% CI [", round(south_ci[1], 4), ", ", round(south_ci[2], 4), "]"),
+    paste0("95% CI [", round(north_ci[1], 4), ", ", round(north_ci[2], 4), "]"),
+    paste0("β变化 = ", round(south_change, 4)),
+    paste0("β变化 = ", round(north_change, 4)),
+    paste0("p = ", format(subgroup_test$p.value, scientific = TRUE, digits = 4)),
+    paste0("DW = ", round(dw_south$statistic, 4), ", p = ", format(dw_south$p.value, scientific = TRUE, digits = 4)),
+    paste0("BP = ", round(bp_south$statistic, 4), ", p = ", format(bp_south$p.value, scientific = TRUE, digits = 4))
+  ),
+  结论 = c(
+    ifelse(south_ci[1] * south_ci[2] > 0, "趋势稳健 ✓", "趋势不稳定 ✗"),
+    ifelse(north_ci[1] * north_ci[2] > 0, "趋势稳健 ✓", "趋势不稳定 ✗"),
+    ifelse(south_change < 0.02, "结果稳健 ✓", "结果敏感 ⚠️"),
+    ifelse(north_change < 0.02, "结果稳健 ✓", "结果敏感 ⚠️"),
+    ifelse(subgroup_test$p.value < 0.05, "有显著差异 ✓", "无显著差异"),
+    ifelse(abs(dw_south$statistic - 2) < 0.5, "可接受 ✓", "需注意 ⚠️"),
+    ifelse(bp_south$p.value > 0.05, "可接受 ✓", "需注意 ⚠️")
+  )
+)
+
+print(supplement_summary)
+
+# ============================================================
+# 六、补充分析可视化
+# ============================================================
+
+# 6.1 Bootstrap 分布图
+library(ggplot2)
+boot_df <- data.frame(β系数 = boot_south_res$t)
+
+p_boot <- ggplot(boot_df, aes(x = β系数)) +
+  geom_histogram(bins = 30, fill = "steelblue", alpha = 0.6, color = "white") +
+  geom_vline(xintercept = boot_south_res$t0, color = "red", linewidth = 1.2) +
+  geom_vline(xintercept = south_ci[1], color = "blue", linetype = "dashed") +
+  geom_vline(xintercept = south_ci[2], color = "blue", linetype = "dashed") +
+  annotate("text", x = boot_south_res$t0 + 0.01, y = 80, 
+           label = paste("原始 β =", round(boot_south_res$t0, 4)), 
+           color = "red", size = 4, hjust = 0) +
+  annotate("text", x = south_ci[1] - 0.01, y = 60, 
+           label = "95% CI", color = "blue", size = 3.5, hjust = 1) +
+  labs(title = "Bootstrap 抽样分布（南方 ILI% 趋势系数）",
+       x = "年份系数 (β)", y = "频数",
+       subtitle = "红色实线 = 原始估计，蓝色虚线 = 95% 置信区间") +
+  theme_minimal()
+
+print(p_boot)
+
+cat("\n补充分析完成！\n")
+
