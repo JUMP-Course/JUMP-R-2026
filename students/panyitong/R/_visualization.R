@@ -7,7 +7,14 @@ library(survey)
 clean_data <- readRDS("clean_data.rds")
 clean_data$smoking <- relevel(factor(clean_data$smoking), ref = "Never")
 levels(factor(clean_data$smoking))
-
+clean_data$race <- relevel(factor(clean_data$race), ref = "Non-Hispanic White")
+levels(clean_data$race)
+clean_data$education <- relevel(factor(clean_data$education), ref = "College or above")
+levels(clean_data$education)
+clean_data$pir_group <- relevel(factor(clean_data$pir_group), ref = "High")
+levels(clean_data$pir_group)
+clean_data$age_group <- relevel(factor(clean_data$age_group), ref = "≤60")
+levels(clean_data$age_group)
 # 设置 survey 设计对象（用于加权）
 design <- svydesign(
   id = ~SDMVPSU,
@@ -29,7 +36,7 @@ p1 <- ggplot(htn_by_smoking, aes(x = smoking, y = hypertension_rate * 100, fill 
   geom_errorbar(aes(ymin = (hypertension_rate - 1.96 * SE) * 100,
                     ymax = (hypertension_rate + 1.96 * SE) * 100),
                 width = 0.2) +
-  labs(title = "不同吸烟状态的高血压患病率",
+  labs(title = "图1 不同吸烟状态的高血压患病率",
        x = "吸烟状态",
        y = "高血压患病率 (%)",
        caption = "误差线表示 95% 置信区间；加权分析") +
@@ -47,13 +54,10 @@ print(p1)
 
 # 图2：加权Logistic回归森林图
 
-# 带惩罚拟合，CI全部收敛为有限正数
-
 fit_model <- svyglm(
-  hypertension ~ smoking + age_group + gender + race + bmi_group + education + pir_group,
+  hypertension ~ smoking + age_group + gender + race + bmi_group  ,
   design = design,
-  family = binomial(link = "logit"),
-  method = "brglmFit")
+  family = binomial(link = "logit"))
 
 # 用 summary 提取结果
 summ <- summary(fit_model)
@@ -87,19 +91,15 @@ or_data$variable <- gsub("age_group", "", or_data$variable)
 or_data$variable <- gsub("gender", "", or_data$variable)
 or_data$variable <- gsub("race", "", or_data$variable)
 or_data$variable <- gsub("bmi_group", "", or_data$variable)
-or_data$variable <- gsub("education", "", or_data$variable)
-or_data$variable <- gsub("pir_group", "", or_data$variable)
 
 # 添加分组标签
 or_data$group <- c(
   rep("吸烟 (ref: Never)", 2),
-  rep("年龄 (ref: 20-39)", 2),
+  "年龄 (ref: ≤60)",
   "性别 (ref: Female)",
   rep("种族(ref: Non-Hispanic White)", 5),
-  rep("BMI (ref: Normal)", 3),
-  rep("教育 (ref: College graduate or higher)", 4),
-  rep("收入 (ref: High)", 2)
-)
+  rep("BMI (ref: Normal)", 3))
+  
 
 # 绘图
 
@@ -119,7 +119,7 @@ p2 <- ggplot(or_data, aes(x = OR, y = variable, color = group)) +
     x = "Odds Ratio (95% Confidence Interval)",
     y = "",
     color = "变量分组",
-    title = "各因素与高血压关联的多因素加权Logistic回归森林图") +
+    title = "图2 各因素与高血压关联的多因素加权Logistic回归森林图") +
   theme_minimal() +
   theme(
     plot.title = element_text(hjust = 0.5, size = 14),
@@ -127,7 +127,21 @@ p2 <- ggplot(or_data, aes(x = OR, y = variable, color = group)) +
     axis.text = element_text(size = 11),
     legend.position = "bottom")
 
+
 print(p2)
 
 # 保存
 ggsave("C:/Users/lenovo/Documents/GitHub/JUMP-R-2026/students/panyitong/figures/figure2_forest_plot.png", p2, width = 10, height = 8, dpi = 300)
+
+# 1. 保存图1（患病率柱状图）的原始加权统计数据
+saveRDS(htn_by_smoking,
+        file = "C:/Users/lenovo/Documents/GitHub/JUMP-R-2026/students/panyitong/output/fig_bar_raw.rds")
+
+# 2. 保存森林图用到的回归OR原始数据集
+saveRDS(or_data,
+        file = "C:/Users/lenovo/Documents/GitHub/JUMP-R-2026/students/panyitong/output/fig_forest_raw.rds")
+
+# 3. 顺带保存完整回归模型
+saveRDS(fit_model,
+        file = "C:/Users/lenovo/Documents/GitHub/JUMP-R-2026/students/panyitong/output/forest_reg_model.rds")
+
