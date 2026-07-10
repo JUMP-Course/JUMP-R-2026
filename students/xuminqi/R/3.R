@@ -134,4 +134,34 @@ ggplot(compare_df, aes(x = 数值, fill = 组别)) +
   facet_grid(变量 ~ 组别, scales = "free_x") +
   labs(title = "i4 / screentime / n18 清洗前后分布对比", x = "变量取值", y = "频数") +
   scale_fill_manual(values = c("salmon","steelblue")) +
-  theme_bw()
+library(tableone)
+# 导入数据！！
+dat <- read.csv("C:/Users/ASUS/Desktop/data.csv")
+# 1. 构建分析变量向量
+
+vars <- c("sum_nssi", "i4", "screentime", "n18") 
+# i4、n18、screentime = 连续变量
+# sum_nssi = 分类变量
+# 2. 创建Table 1
+table1 <- CreateTableOne(
+  vars = vars,
+   data = dat
+)
+# 3. 查看原始结果
+print(table1)
+
+# 4. 【汇报关键】优化输出：连续变量+分类变量指定格式
+# continuous：连续变量用均值±标准差；如果偏态改用中位数(IQR)
+# factorVars：指定哪些是分类变量
+table1_final <- print(
+  table1,
+  factorVars = c("sum_nssi"), # 声明分类变量
+  contDigits = 1,    # 连续变量小数位数
+  catDigits = 1,     # 分类变量百分比小数
+  pDigits = 3,       # P值保留3位
+  showPvalues = TRUE,# 是否展示组间比较P值
+  test = TRUE        # 开启组间检验
+)
+
+# 导出到csv，直接粘贴Word做三线表
+write.csv(table1_final, "基线特征表.csv", row.names = TRUE)
