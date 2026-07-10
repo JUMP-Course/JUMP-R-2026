@@ -171,25 +171,70 @@ table1_final <- print(
 )
 # 导出到csv，直接粘贴Word做三线表
 write.csv(table1_final, "基线特征表.csv", row.names = TRUE)
-# 1. 首次运行安装包（只需要运行一次，后续可注释掉）
-install.packages("corrplot", dependencies = TRUE, update.packages = FALSE)
-# 1. 安装survminer（首次只运行一次）
-install.packages("survminer", dependencies = TRUE, update.packages = FALSE)
-
+# 安装仅第一次运行
+install.packages(c("ggplot2","dplyr","corrplot","tableone","patchwork"))
 library(ggplot2)
 library(dplyr)
-library(corrplot)   # 相关图
-library(survival)
-library(survminer)
-
-# screentime屏幕时长分布
-ggplot(dat,aes(x = screentime))+
-  geom_histogram(bins=30,fill="steelblue",alpha=0.7)+
-  labs(
-    x = "每日屏幕使用时长(min)",
-    y = "频数",
-    title = "研究人群屏幕使用时长分布直方图"
-  )+
+library(corrplot)
+library(patchwork) # 拼图，一次性展示多张核心图
+# 导入你的数据
+dat <- read.csv("C:/Users/ASUS/Desktop/data.csv", fileEncoding = "UTF-8")
+# 构建NSSI总分
+dat <- dat %>% mutate(sum_nssi =n96+n97+n98+n99+n100+n103+n104+n105+n106+n107+n108+field1)
+p_dist1 <- ggplot(dat,aes(x=sum_nssi))+
+  geom_histogram(aes(y=after_density),bins=30,fill="#4472C4",alpha=0.7)+
+  geom_density(linewidth=1,color="red")+
+  labs(x="NSSI自伤总分",y="密度",title="结局变量sum_nssi分布")+
   theme_bw()
-cor_mat <- dat %>% select(sum_nssi,screentime,i4,n18) %>% cor(use="complete.obs")
-corrplot(cor_mat,method="color",addCoef.col="black",tl.col="black")
+p_dist2 <- ggplot(dat,aes(x=i4))+
+  geom_histogram(aes(y=after_density),bins=30,fill="#548235",alpha=0.7)+
+  geom_density(linewidth=1,color="red")+
+  labs(x="每日睡眠时长(h)",y="密度",title="睡眠时长分布")+
+  theme_bw()
+
+# patchwork拼图，一页展示
+p_all_dist <- p_dist1 + p_dist2
+print(p_all_dist)
+ggsave("1_变量分布图.png",p_all_dist,width=12,height=5,dpi=300)
+# 分组变量s4（性别/经济/年级均可替换）
+p_box <- ggplot(dat,aes(x=s4,y=sum_nssi,fill=s4))+
+  geom_boxplot(alpha=0.7,show.legend = F)+
+  labs(x="分组（s4）",y="NSSI自伤总分",title="不同组别自伤得分组间对比")+
+  theme_bw()
+print(p_box)
+ggsave("2_组间箱线图.png",p_box,width=8,height=5,dpi=300)
+# 分组变量s4（性别/经济/年级均可替换）
+p_box <- ggplot(dat,aes(x=n1,y=sum_nssi,fill=s4))+
+  geom_boxplot(alpha=0.7,show.legend = F)+
+  labs(x="分组（s4）",y="NSSI自伤总分",title="不同组别自伤得分组间对比")+
+  theme_bw()
+print(p_box)
+ggsave("2_组间箱线图.png",p_box,width=8,height=5,dpi=300)
+# 分组变量s4（性别/经济/年级均可替换）
+p_box <- ggplot(dat,aes(x=n14,y=sum_nssi,fill=s4))+
+  geom_boxplot(alpha=0.7,show.legend = F)+
+  labs(x="分组（s4）",y="NSSI自伤总分",title="不同组别自伤得分组间对比")+
+  theme_bw()
+print(p_box)
+ggsave("2_组间箱线图.png",p_box,width=8,height=5,dpi=300)
+# 分组变量s4（性别/经济/年级均可替换）
+p_box <- ggplot(dat,aes(x=n15,y=sum_nssi,fill=s4))+
+  geom_boxplot(alpha=0.7,show.legend = F)+
+  labs(x="分组（s4）",y="NSSI自伤总分",title="不同组别自伤得分组间对比")+
+  theme_bw()
+print(p_box)
+ggsave("2_组间箱线图.png",p_box,width=8,height=5,dpi=300)
+# 分组变量s4（性别/经济/年级均可替换）
+p_box <- ggplot(dat,aes(x=n16,y=sum_nssi,fill=s4))+
+  geom_boxplot(alpha=0.7,show.legend = F)+
+  labs(x="分组（s4）",y="NSSI自伤总分",title="不同组别自伤得分组间对比")+
+  theme_bw()
+print(p_box)
+ggsave("2_组间箱线图.png",p_box,width=8,height=5,dpi=300)
+p_trend <- ggplot(dat,aes(x=screentime,y=sum_nssi))+
+  geom_point(alpha=0.5,color="gray40")+
+  geom_smooth(method="lm",color="red",linewidth=1)+ # 线性拟合
+  labs(x="每日屏幕使用时长(h)",y="NSSI总分",title="屏幕时长与自伤得分变化趋势")+
+  theme_bw()
+print(p_trend)
+ggsave("3_趋势散点图.png",p_trend,width=8,height=5,dpi=300)
