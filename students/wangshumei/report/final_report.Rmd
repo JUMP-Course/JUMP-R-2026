@@ -1,0 +1,289 @@
+---
+title: "肿瘤分级与宫颈癌患者总生存期的关联"
+output:
+  html_document:
+    code_folding: show
+    toc: true           
+    toc_float: true
+    number-sections: true
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+```
+
+#一、研究背景
+
+宫颈癌（cervical cancer）：也称为子宫颈癌，是女性生殖道恶性肿瘤，最常见类型为鳞状细胞癌。病因主要为人乳头状瘤病毒（HPV）感染。宫颈癌的高危人群为有多个性伴侣者、性生活初夜早和免疫功能缺陷者。宫颈癌在早期可能无明显症状，随着疾病进展，可能出现阴道流血、异常阴道排液以及肿瘤侵犯到邻近周围的组织或器官时出现的症状。
+
+目前国际妇产联盟（FIGO分期）按宫颈癌侵犯部位进行分期，作为宫颈癌的诊断标准。 而病理科医生在常规报告中会对宫颈癌进行分级，肿瘤分级反应肿瘤细胞的恶性程度， G1期为癌细胞接近正常宫颈细胞，生长较慢 G2期介于高分化和低分化之间，恶性程度中等 G3期为癌细胞原始且异常，增殖活跃，易转移，预后较差。
+
+#二、研究问题
+
+肿瘤分级是不是可以作为宫颈癌的独立危险因素或者诊断标准？它与肿瘤患者的生存期有怎样的关联？
+
+#三、数据来源与清洗
+
+##3.1 数据来源
+数据来源于TCGA-CESC(The Cancer Genome Atlas Program-cervical cancer，癌症基因组图谱计划—宫颈癌)数据库，初始纳入307例样本，经数据清洗后共纳入289例
+
+##3.2 数据清洗 
+###3.2.1 读取以及筛选数据
+```{r, echo=TRUE, eval=TRUE}
+library(readr)
+library(tidyverse)
+library(survival)
+library(survminer)
+file_path <- "D:/JUMP/clinical.tsv" 
+df <- read_tsv(file_path)
+#筛选需要的数据
+df_selected <- df %>%
+  select(cases.submitter_id,
+         diagnoses.tumor_grade,
+         demographic.vital_status,
+         demographic.days_to_death,
+         cases.lost_to_followup,
+         diagnoses.days_to_last_follow_up,
+         demographic.age_at_index,
+         diagnoses.figo_stage,
+         treatments.treatment_type
+         )
+#合并临床唯一信息
+df_final <- df_selected %>%
+  group_by(cases.submitter_id) %>%
+  summarise(
+    tumor_grade = first(na.omit(diagnoses.tumor_grade)),
+    vital_status = first(na.omit(demographic.vital_status)),
+    days_to_death = first(na.omit(demographic.days_to_death)),
+    lost_to_followup = first(na.omit( cases.lost_to_followup)),
+    days_to_last_follow_up = first(na.omit(diagnoses.days_to_last_follow_up)),
+    age_at_index = first(na.omit(demographic.age_at_index)),
+    figo_stage = first(na.omit(diagnoses.figo_stage)),
+    all_treatments = paste(unique(na.omit(treatments.treatment_type)), collapse = "; "),
+    .groups = 'drop'
+  )
+```
+###3.2.2 定义分析变量
+```{r, echo=TRUE, eval=TRUE}
+#创建生存时间及状态变量
+df_final$time <- ifelse(df_final$vital_status == "Dead", 
+                        as.numeric(df_final$days_to_death), 
+                        as.numeric(df_final$days_to_last_follow_up))
+df_final$status <- ifelse(df_final$vital_status == "Dead", 1, 0)
+table(df_final$vital_status, useNA = "ifany")
+#定义宫颈癌figo分期为分类变量
+df_final <- df_final %>%
+  mutate(figo_stage_group = case_when(
+    figo_stage %in% c("Stage I", "Stage IA", "Stage IA2", "Stage IB", "Stage IB1", "Stage IB2") ~ "Stage I",
+    figo_stage %in% c("Stage II", "Stage IIA", "Stage IIA1", "Stage IIA2", "Stage IIB") ~ "Stage II",
+    figo_stage %in% c("Stage III", "Stage IIIA", "Stage IIIB") ~ "Stage III",
+    figo_stage %in% c("Stage IVA", "Stage IVB") ~ "Stage IV",
+    TRUE ~ "Unknown"  # 其他情况（如 '--', 'Stage X' 等）归为未知
+  ))
+df_final$figo_stage_group <- factor(df_final$figo_stage_group,
+                                    levels = c("Stage I", "Stage II", "Stage III", "Stage IV", "Unknown"),
+                                    ordered = FALSE)
+#定义手术类型为二分类变量
+df_final$all_treatments_clean <-trimws(tolower(as.character(df_final$all_treatments)))
+df_final$treatment_type <- ifelse(grepl("hysterectomy", df_final$all_treatments_clean), 
+                                  "Surgery", 
+                                  "Non-Surgery")
+df_final$treatment_type <- factor(df_final$treatment_type, 
+                                  levels = c("Non-Surgery", "Surgery"))
+```
+###3.2.3 主分析和敏感性分析
+```{r, echo=TRUE, eval=TRUE}
+df_main <- df_final %>%
+  filter(tumor_grade %in% c("G1", "G2", "G3")) %>%
+  mutate(tumor_grade_clean = factor(tumor_grade, levels = c("G1", "G2", "G3")))
+cat("主分析样本量:", nrow(df_main), "\n")
+table(df_main$tumor_grade_clean, useNA = "ifany")
+cox_main <- coxph(Surv(time, status) ~ tumor_grade + age_at_index, data = df_main)
+summary(cox_main)
+df_sensitivity <- df_final  
+df_sensitivity <- df_sensitivity %>%
+  mutate(
+    tumor_grade_sens = case_when(
+      tumor_grade %in% c("G1", "G2", "G3") ~ tumor_grade,
+      TRUE ~ "Unknown"  
+    )
+  ) %>%
+  mutate(
+    tumor_grade_sens = factor(
+      tumor_grade_sens,
+      levels = c("G1", "G2", "G3", "Unknown")
+    )
+  )
+library(dplyr)
+df_cox <- df_sensitivity %>%
+  filter(
+    !is.na(time), 
+    !is.na(status), 
+    !is.na(tumor_grade_sens), 
+    !is.na(age_at_index)
+  )
+cat("敏感性分析样本量:", nrow(df_cox), "\n")
+table(df_cox$tumor_grade_sens, useNA = "ifany")
+cox_sensitivity<- coxph(Surv(time, status) ~ tumor_grade_sens + age_at_index, data = df_cox)
+summary(cox_sensitivity)
+```
+
+#四、变量说明
+
+暴露因素：肿瘤分级（G1 / G2 / G3） diagnoses.tumor_grade
+
+结局：总生存（OS）——从确诊到死亡或末次随访时间 1.死亡：demographic.days_to_death 2.失访：cases.lost_to_followup，diagnoses.days_to_last_follow_up
+
+协变量：年龄、FIGO 分期、治疗方式 demographic.age_at_index、 diagnoses.figo_stage、 treatments.treatment_type
+
+#五、研究方法 
+##5.1 描述性分析： 比较不同分级组（G1/G2/G3）在年龄、分期、治疗方式等的基线特征
+
+##5.2 Kaplan-Meier生存曲线： 绘制G1/G2/G3三组生存曲线，Log-rank检验比较三组生存曲线是否有统计学差异
+
+##5.3 单因素Cox回归： 筛选与总生存期相关的变量（p<0.1）。逐个检验每个变量（分级、年龄、分期、治疗方式）与总生存的关系
+
+##5.4 多因素Cox回归： 以肿瘤分级为主要暴露，校正协变量，评估独立关联，结果用风险比（HR）和95%置信区间表示
+
+##5.5 森林图： 可视化展示各变量的风险比（HR）及95%置信区间
+
+#六、研究结果 
+##6.1 病例基本情况 共收集宫颈癌病例289例，患者平均年龄为48.01岁，其中宫颈癌病理G1级17例，G2级117例，G3级101例，未知分级54例；按figo分期进行分类，1期136例，2期62例，3期42例，4期13例，未知分期36例；按治疗类型进行分类，行子宫切除术者160例，未接受手术治疗者129例。见表1。 按宫颈癌病理分级，G1级17例病例的中位年龄为44岁，G2级病例中位年龄46岁，G3级病例中位年龄为48岁，未知分级病例中位年龄为45岁，经Kruskal-wallis检验，χ²=0.194，P=0.979,差异无统计学意义；在不同分级的宫颈癌肿瘤患者中，肿瘤分期的分布有统计学意义（P<0.001）；在不同分级的宫颈癌肿瘤患者中，治疗类型的分布有统计学意义（P=0.022<0.05）。见表2。
+
+```{r, echo=TRUE, eval=TRUE}
+library(tableone)
+vars <- c("age_at_index","tumor_grade_sens", "treatment_type", "figo_stage_group")
+cat_vars <- c("tumor_grade_sens","treatment_type", "figo_stage_group")
+table1_overall <- CreateTableOne(
+  vars = vars,
+  factorVars = cat_vars,
+  data = df_cox,  
+)
+print(table1_overall, quote = FALSE, noSpaces = TRUE, printToggle = TRUE)
+vars <- c("age_at_index", "figo_stage_group", "treatment_type")
+cat_vars <- c("figo_stage_group", "treatment_type")
+table1 <- CreateTableOne(
+  vars = vars,
+  factorVars = cat_vars,
+  strata = "tumor_grade_sens",
+  data = df_cox,
+  test = TRUE,
+)
+
+print(table1, 
+      quote = FALSE, 
+      noSpaces = TRUE, 
+      showAllLevels = TRUE,
+      nonnormal = "age_at_index") 
+```
+
+##6.2 不同分级的宫颈癌患者的生存曲线 根据宫颈癌患者的生存情况绘制“时间——生存率”的kaplan-meier生存曲线，分级缺失组（unknown组）生存曲线下降最快，死亡风险最高；G1级下降最慢，死亡风险较低，G2级患者比G3级下降的快，G2级患者的死亡风险高于G3级。经log-rank检验显示，四组间生存差异具有统计学意义（p\<0.001）。
+
+```{r, echo=TRUE, eval=TRUE}
+km_fit <- survfit(Surv(time, status) ~ tumor_grade_sens, data = df_cox)
+ggsurvplot(
+  km_fit,
+  data = df_cox,
+  pval = TRUE,          
+  conf.int = TRUE,       
+  risk.table = TRUE,
+  palette = c("#E7B800", "#2E9FDF", "#FC4E07", "#999999"),
+  legend.title = "Tumor Grade",
+  legend.labs = c("G1", "G2", "G3","unknown"),
+  xlab = "Time (Days)",
+  ylab = "Survival Probability",
+  title = "图1. 不同肿瘤分级患者的 Kaplan-Meier 生存曲线",
+  ggtheme = theme_minimal()
+)
+```
+
+##6.3 影响宫颈癌患者生存期的单因素cox回归 
+对各变量进行单因素Cox回归分析，结果显示: 1.在肿瘤分级中，未知分级患者的死亡风险是G1级的5.01倍$$HR=5.01,95%CI(1.20%,20.92%),P=0.027$$,G2级（HR=1.17, P=0.836）和G3级（HR=0.96,P=0.955）与G1级相比，死亡风险差异无统计学意义。 2.年龄每增加一岁，死亡风险略有增加$$HR=1.01,95%CI(1.00,1.03),P=0.090$$，但未达到统计学显著水平。
+3.FIGO分期4期的死亡风险比1期增加了3.74倍$$HR=4.74,95%CI(2.18,10.30)，P\<0.001$$,FIGO分期未知分期的死亡风险是1期的4.36倍，$$HR=4.36,95%CI(2.44,7.79)，P\<0.001,$$，2期（HR=0.97, P=0.943）和3期（HR=1.51, P=0.321）与1期相比，差异无统计学意义。 4.手术治疗患者的死亡风险比非手术治疗降低了一半$$HR=0.50,95%CI(0.31,0.80)，P=0.004$$。
+
+```{r, echo=TRUE, eval=TRUE}
+library(broom) 
+names(df_cox)
+# 肿瘤分级（分类变量）
+univ_grade <- coxph(Surv(time, status) ~ tumor_grade_sens, data = df_cox)
+# 年龄（连续变量）
+univ_age <- coxph(Surv(time, status) ~ age_at_index, data = df_cox)
+# 肿瘤分期（分类变量）
+univ_stage <- coxph(Surv(time, status) ~ figo_stage_group, data = df_cox)
+# 治疗方式（分类变量）
+univ_treatment <- coxph(Surv(time, status) ~ treatment_type, data = df_cox)
+# 汇总结果并导出表格
+results_list<-list(univ_grade, univ_age, univ_stage, univ_treatment) 
+var_names <- c("Tumor Grade", "Age", "FIGO Stage", "Treatment Type")
+# 提取 HR、95%CI 和 P 值
+final_table <- data.frame()
+for(i in 1:length(results_list)) {
+  model <- results_list[[i]]
+  summary_model <- summary(model)
+# 提取系数表 
+coef_table <- summary_model$coefficients
+  confint_table <- summary_model$conf.int
+# 整理成表格 
+temp_df <- data.frame( 
+  Variable = var_names[i], 
+  Level = rownames(coef_table), 
+  HR = round(confint_table[, "exp(coef)"], 2), 
+  Lower_CI = round(confint_table[, "lower .95"], 2), 
+  Upper_CI = round(confint_table[, "upper .95"], 2),
+  P_value = round(coef_table[, "Pr(>|z|)"], 4) 
+  )
+final_table <- rbind(final_table, temp_df) }
+# 加载 knitr 包
+library(knitr)
+# 美化输出
+kable(final_table,
+      digits = c(0, 0, 2, 2, 2, 4), # 列小数位数：Variable(0), Level(0), HR(2), Lower_CI(2), Upper_CI(2), P_value(4) 
+      align = "lrrrrr", 
+      # 左对齐文字，右对齐数字 
+      caption = "单因素 Cox 回归结果") 
+```
+
+##6.4 影响宫颈癌患者生存期的多因素cox回归 在调整了其他变量后，FIGO分期4期患者的死亡风险是1期的2.63倍$$HR=2.63,95%CI(1.16,5,96),P=0.021$$；未知分期患者的死亡风险比1期增加了1.63倍$$HR=2.63,95%CI(1.35,5,13),P=0.004$$；手术患者比非手术患者的死亡风险降低了49%$$HR=0.51,95%CI(0，30,0.88),P=0.015$$。此外，年龄(HR=1.00)及肿瘤分级G2/G3在各组间的差异均无统计学意义(P\>0.05)。
+
+```{r, echo=TRUE, eval=TRUE}
+multiv_model <- coxph(
+  Surv(time, status) ~ tumor_grade_sens + age_at_index + figo_stage_group + treatment_type , 
+  data = df_cox
+)
+# 查看多因素模型的结果
+summary(multiv_model)
+summ_multiv <- summary(multiv_model)
+multiv_results <- data.frame(
+  Variable = rownames(summ_multiv$coefficients),
+  Level = rownames(summ_multiv$coefficients),
+  HR = round(summ_multiv$conf.int[, "exp(coef)"], 2),
+  Lower_CI = round(summ_multiv$conf.int[, "lower .95"], 2),
+  Upper_CI = round(summ_multiv$conf.int[, "upper .95"], 2),
+  P_value = round(summ_multiv$coefficients[, "Pr(>|z|)"], 4)
+)
+```
+
+##6.5 影响宫颈癌患者生存期的多因素cox回归森林图
+
+```{r, echo=TRUE, eval=TRUE}
+library(forestmodel)
+forest_model(multiv_model, 
+             format_options = forest_model_format_options(colour = "black")) 
+```
+
+#七、讨论 
+##7.1 肿瘤分级的独立预后价值 年龄在宫颈癌病理分级上是均衡的，肿瘤分期和是否手术在各组中有差别，各组中，figo分级1级、2级占大多数（68.5%，198/289），是否手术中手术占大多数（55.4%，160/289）。
+
+G1、G3级的宫颈癌患者五年生存率约为80%，G2级的宫颈癌患者五年生存率约为75%，未知分级的宫颈癌患者的五年生存率约为25%，这可能由于未知分级一般恶性程度较高或者患者不配合有关。但是多因素回归不支持这一假设，这一现象可能为偶然现象或者有其他混杂因素影响。
+
+在校正了年龄、figo分期、治疗类型之后，FIGO分期4期（HR=2.63, 95%CI:1.16-5.96,P=0.021）和Unknown分期（HR=2.63, 95%CI: 1.35-5.13, P=0.004）仍是独立的不良预后因素；手术治疗是独立的保护性因素（HR=0.51, 95%CI: 0.30-0.88, P=0.015）。可能肿瘤分级本身与figo分期相关，在矫正figo分期之后，肿瘤分级的效应被削弱。
+##7.2 临床意义
+尽管肿瘤分级在本研究中未体现为独立预后因素，但临床实践中仍不可完全忽视。FIGO分期和手术治疗被证实为强预后因素，这再次强调了规范化分期诊断和根治性手术在宫颈癌治疗中的核心地位。
+
+#八、结论 
+1.在校正了年龄、figo分期和是否手术之后，肿瘤分级（G1\G2\\G3）并未显示出对宫颈癌患者总生存期的独立预测价值。 2.figo分期和手术治疗是影响宫颈癌患者总生存的预后因素。
+
+#九、局限性 
+1.本研究主要讨论宫颈癌分级（G1\G2\\G3）与患者生存期的关联，G1级17例，样本量较(G2级：117例，G3级：107例）少，可能不具有良好的代表性，存在选择偏倚 2.本研究未考虑人种和社会经济学地位等因素以及未纳入淋巴结转移情况、hpv类型等因素
