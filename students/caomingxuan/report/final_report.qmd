@@ -1,0 +1,865 @@
+---
+title: "BMI与高血压关联的Logistic回归分析"
+author: "曹茗萱"
+format: html
+editor: visual
+---
+
+# 1.研究背景与意义
+
+## 1.1 研究背景
+  高血压是全球心血管疾病和过早死亡的首要可干预危险因素。据世界卫生组织统计，全球约有13亿成年人患有高血压，且这一数字仍在持续增长。与此同时，超重和肥胖的患病率在全球范围内迅速攀升，已成为21世纪最严峻的公共卫生挑战之一。
+  
+  大量流行病学研究表明，肥胖与高血压之间存在密切关联。体重增加可通过多种机制升高血压，包括激活肾素-血管紧张素-醛固酮系统、增加交感神经活性、导致胰岛素抵抗和钠水潴留等。然而，不同人群中的关联强度可能存在差异，且剂量-反应关系有待进一步量化。
+
+## 1.2 研究意义
+  本研究基于美国国家健康与营养调查（National Health and Nutrition Examination Survey, NHANES）2021-2023年数据，旨在：
+
+·量化不同BMI分级与高血压患病风险的关联强度
+
+·探索BMI与高血压之间的剂量-反应关系
+
+·评估性别是否修饰BMI与高血压的关联
+
+·为体重管理在高血压防控中的作用提供流行病学证据
+
+## 1.3 研究问题： 
+  在20岁及以上美国成人中，BMI分级（正常/超重/肥胖）是否与高血压患病风险独立相关？
+
+## 1.4 研究假设：
+  超重和肥胖是高血压的独立危险因素，且存在剂量-反应关系。
+
+# 2.研究设计与方法
+
+## 2.1 数据来源
+  本研究数据来源于美国国家健康与营养调查（NHANES）2021-2023周期（周期标识为"L"）。NHANES是由美国疾病控制与预防中心（CDC）国家卫生统计中心（NCHS）开展的连续横断面调查，采用复杂多阶段概率抽样设计，旨在评估美国成人和儿童的健康与营养状况。
+
+## 2.2 纳入与排除标准
+纳入标准：
+·年龄 ≥ 20岁
+
+·具有完整的BMI数据
+
+·具有高血压结局数据
+
+·具有关键协变量数据（性别、种族、教育水平）
+
+排除标准：
+·年龄 < 20岁
+
+·BMI < 18.5 kg/m²（低体重者，样本量小且与研究主题方向不一致）
+
+·任一关键变量缺失者
+
+# 3.关键变量存在缺失值
+
+## 3.1 变量定义
+结局变量：高血压
+
+·高血压定义为满足以下任一条件：
+
+·自报曾被医生诊断为高血压（BPQ020 = "Yes"）
+
+·自报正在服用降压药物（BPQ150 = "Yes"）
+
+暴露变量：BMI分级
+
+·BMI根据公式计算：BMI = 体重(kg) / 身高(m)²
+
+依据世界卫生组织标准分为三组：
+
+·正常体重：18.5 ≤ BMI < 25 kg/m²
+
+·超重：25 ≤ BMI < 30 kg/m²
+
+·肥胖：BMI ≥ 30 kg/m²
+
+协变量
+
+本研究纳入以下协变量：
+
+·年龄（连续变量）：RIDAGEYR
+
+·性别（分类变量）：男性/女性
+
+·种族（分类变量）：墨西哥裔美国人、其他西班牙裔、非西班牙裔白人、非西班牙裔黑人、非西班牙裔亚洲人、其他种
+族
+
+·教育水平（分类变量）：低于9年级、9-11年级、高中毕业、部分大学、大学及以上
+
+# 4.整理数据
+
+## 4.1 加载R包
+
+```{r load-packages, message=FALSE, warning=FALSE}
+# 1. 加载R包 --------------------------------------------------
+if (!require("nhanesA")) install.packages("nhanesA")  #导入数据库
+if (!require("tidyverse")) install.packages("tidyverse")
+if (!require("survey")) install.packages("survey")  #矫正NHANES数据库的抽样设计
+if (!require("forestplot")) install.packages("forestplot")  #绘制森林图
+if (!require("tableone")) install.packages("tableone")  #生成基线特征表
+if (!require("kableExtra")) install.packages("kableExtra")  #美化表格
+if (!require("ggplot2")) install.packages("ggplot2")  #绘制统计图
+if (!require("car")) install.packages("car")  # 多重共线性检验
+if (!require("pROC")) install.packages("pROC")  # ROC曲线
+if (!require("sjPlot")) install.packages("sjPlot")  # 可视化模型
+library(car)
+library(pROC)
+library(sjPlot)
+library(nhanesA)
+library(tidyverse)
+library(survey)
+library(forestplot)
+library(tableone)
+library(kableExtra)
+library(ggplot2)
+```
+
+## 4.2 下载数据
+
+```{r}
+# 人口学数据（2021-2023周期标识为"L"）
+demo <- nhanes("DEMO_L")
+cat("DEMO_L 下载完成，样本量:", nrow(demo), "\n")  #字符串拼接，“\n换行，\t空格”
+```
+
+```{r}
+# 血压问卷数据
+bpq <- nhanes("BPQ_L")
+cat("BPQ_L 下载完成，样本量:", nrow(bpq), "\n")
+```
+
+```{r}
+# 体格测量数据
+bmx <- nhanes("BMX_L")
+cat("BMX_L 下载完成，样本量:", nrow(bmx))
+```
+
+## 4.3 合并数据
+
+```{r}
+nhanes_merged <- demo %>%
+  left_join(bpq, by = "SEQN") %>% 
+  #以 demo 表为基准，保留所有在 demo里的人，bpq里有血压数据就加上，没有就留空。
+  left_join(bmx, by = "SEQN")
+cat("合并后总样本量:", nrow(nhanes_merged), "\n")
+analysis_data <- nhanes_merged
+```
+
+# 5.数据探索
+
+## 5.1 行列数
+
+```{r}
+nrow(analysis_data)
+ncol(analysis_data)
+```
+
+## 5.2 变量名
+
+```{r}
+names(analysis_data)
+```
+
+## 5.3 数据类型查看
+
+```{r}
+class(analysis_data)
+```
+
+## 5.4 获取当前目录
+
+```{r}
+getwd()
+```
+
+# 6.数据清洗与变量定义
+
+## 6.1 筛选年龄
+
+```{r}
+analysis_data <- nhanes_merged %>%
+  dplyr::filter(RIDAGEYR >= 20) 
+cat("年龄筛选后样本量:", nrow(analysis_data), "\n")
+cat("年龄范围:", range(analysis_data$RIDAGEYR, na.rm = TRUE), "岁\n")
+```
+
+## 6.2 计算BMI
+
+```{r}
+analysis_data <- analysis_data %>%
+  dplyr::mutate(
+    BMI = BMXWT / (BMXHT / 100)^2
+  )
+```
+BMI统计量:
+```{r}
+cat("  最小值:", round(min(analysis_data$BMI, na.rm = TRUE), 1), "\n")
+cat("  中位数:", round(median(analysis_data$BMI, na.rm = TRUE), 1), "\n")
+cat("  均值:", round(mean(analysis_data$BMI, na.rm = TRUE), 1), "\n")
+cat("  最大值:", round(max(analysis_data$BMI, na.rm = TRUE), 1), "\n")
+```
+## 6.3 BMI分类
+
+```{r}
+analysis_data <- analysis_data %>%
+  dplyr::mutate(
+    bmi_cat = dplyr::case_when(
+      BMI >= 18.5 & BMI < 25 ~ "Normal weight",
+      BMI >= 25 & BMI < 30 ~ "Overweight",
+      BMI >= 30 ~ "Obese",
+      TRUE ~ NA_character_  #前面所有条件都不满足时,设为缺失值
+    )
+  )
+```
+BMI分类样本量:
+```{r}
+knitr::kable(
+  table(analysis_data$bmi_cat, useNA = "ifany"),
+  col.names = c("BMI分类", "样本量"),
+)
+```
+## 6.4 定义结局变量：高血压
+
+```{r}
+analysis_data <- analysis_data %>%
+  dplyr::mutate(
+    hypertension = dplyr::case_when(  #case_when 是条件判断，从上往下看，满足任意一个就赋值
+      BPQ020 == "Yes" ~ 1,      # 自报确诊
+      BPQ150 == "Yes" ~ 1,
+      BPQ020 == "No" ~ 0,      # 自报确诊
+      BPQ150 == "No" ~ 0,
+      TRUE ~ NA_real_               # 不满足上述条件
+    )
+  )
+```
+高血压患病情况:
+```{r}
+knitr::kable(
+  table(analysis_data$hypertension, useNA = "ifany"),
+  col.names = c("高血压状态", "样本量"),
+)
+```
+```{r}
+hypertension_rate <- mean(analysis_data$hypertension == 1, na.rm = TRUE) * 100
+cat("高血压患病率：", round(hypertension_rate, 1), "%\n\n")
+```
+
+## 6.5 定义协变量：性别
+
+```{r}
+analysis_data <- analysis_data %>%
+  dplyr::mutate(
+    gender = dplyr::case_when(
+      RIAGENDR == "Male"   ~ 1,
+      RIAGENDR == "Female" ~ 2,
+      TRUE ~ NA_real_
+    )
+  )
+```
+性别数值转换结果：
+```{r}
+knitr::kable(
+  table(analysis_data$gender, useNA = "ifany"),
+  col.names = c("性别", "样本量"),
+)
+```
+
+## 6.6 定义协变量：教育水平
+
+```{r}
+analysis_data <- analysis_data %>%
+  dplyr::mutate(
+    education = dplyr::case_when(
+      DMDEDUC2 == "Less than 9th grade" ~ 1,
+      DMDEDUC2 == "9-11th grade (Includes 12th grade with no diploma)" ~ 2,
+      DMDEDUC2 == "High school graduate/GED or equivalent" ~ 3,
+      DMDEDUC2 == "Some college or AA degree" ~ 4,
+      DMDEDUC2 == "College graduate or above" ~ 5,
+      TRUE ~ NA_real_
+    )
+  )
+```
+教育水平分布:
+```{r}
+knitr::kable(
+  table(analysis_data$education, useNA = "ifany"),
+  col.names = c("教育水平", "样本量"),
+)
+```
+
+## 6.7 定义协变量：种族
+
+```{r}
+analysis_data <- analysis_data %>%
+  dplyr::mutate(
+    race = dplyr::case_when(
+      RIDRETH3 == "Mexican American" ~ 1,
+      RIDRETH3 == "Other Hispanic" ~ 2,
+      RIDRETH3 == "Non-Hispanic White" ~ 3,
+      RIDRETH3 == "Non-Hispanic Black" ~ 4,
+      RIDRETH3 == "Non-Hispanic Asian" ~ 5,
+      RIDRETH3 == "Other Race - Including Multi-Racial" ~ 6,
+      TRUE ~ NA_real_
+    )
+  )
+```
+种族分布:
+```{r}
+knitr::kable(
+  table(analysis_data$race, useNA = "ifany"),
+  col.names = c("种族", "样本量"),
+)
+```
+
+## 6.8 删除缺失值
+
+```{r}
+analysis_data <- analysis_data %>%
+  dplyr::filter(
+    !is.na(bmi_cat),
+    !is.na(hypertension),
+    !is.na(gender),
+    !is.na(race),
+    !is.na(education),
+    BMI >= 18.5  # 剔除低体重者（BMI<18.5）
+  )
+```
+
+## 6.9 数据清洗结果
+【最终样本量】：
+
+```{r}
+cat(nrow(analysis_data), "人\n")
+```
+【高血压患病率】：
+```{r}
+hypertension_rate_final <- mean(analysis_data$hypertension == 1) * 100
+cat(round(hypertension_rate_final, 1), "%\n")
+```
+【各BMI组样本量及患病率】：
+```{r}
+bmi_summary <- analysis_data %>%
+  dplyr::group_by(bmi_cat) %>%
+  dplyr::summarise(
+    n = n(),
+    prevalence = round(mean(hypertension == 1) * 100, 1)
+  )
+print(bmi_summary)
+```
+【各协变量分布】：
+  性别：
+```{r}
+print(table(analysis_data$gender))
+```
+  种族：
+```{r}
+print(table(analysis_data$race))
+```
+  教育水平:
+```{r}
+print(table(analysis_data$education))
+```
+  
+# 7.统计性描述
+
+## 7.1 连续变量描述
+
+年龄 (RIDAGEYR):
+  均值 ± 标准差:
+```{r}
+cat(round(mean(analysis_data$RIDAGEYR, na.rm = TRUE), 1), " ± ",
+    round(sd(analysis_data$RIDAGEYR, na.rm = TRUE), 1), " 岁\n", sep = "")
+```
+  中位数 (Q1, Q3):
+```{r}
+cat(round(median(analysis_data$RIDAGEYR, na.rm = TRUE), 1), " (",
+    round(quantile(analysis_data$RIDAGEYR, 0.25, na.rm = TRUE), 1), ", ",
+    round(quantile(analysis_data$RIDAGEYR, 0.75, na.rm = TRUE), 1), ") 岁\n", sep = "")
+```
+BMI:
+ 均值 ± 标准差:
+```{r}
+cat(round(mean(analysis_data$BMI, na.rm = TRUE), 1), " ± ",
+    round(sd(analysis_data$BMI, na.rm = TRUE), 1), "\n", sep = "")
+```
+中位数 (Q1, Q3)：
+```{r}
+cat(round(median(analysis_data$BMI, na.rm = TRUE), 1), " (",
+    round(quantile(analysis_data$BMI, 0.25, na.rm = TRUE), 1), ", ",
+    round(quantile(analysis_data$BMI, 0.75, na.rm = TRUE), 1), ")\n", sep = "")
+```
+
+## 7.2 分类变量描述
+性别分布:
+```{r}
+gender_tab <- table(analysis_data$gender)
+gender_prop <- prop.table(gender_tab) * 100
+cat("  男性: ", gender_tab[1], " (", round(gender_prop[1], 1), "%)\n", sep = "")
+cat("  女性: ", gender_tab[2], " (", round(gender_prop[2], 1), "%)\n", sep = "")
+```
+种族分布:
+```{r}
+race_tab <- table(analysis_data$race)
+race_prop <- prop.table(race_tab) * 100
+race_labels <- c("墨西哥裔美国人", "其他西班牙裔", "非西班牙裔白人", "非西班牙裔黑人", "非西班牙裔亚洲人","其他种族 - 包括多种族")
+for (i in 1:length(race_tab)) {
+  cat("  ", race_labels[i], ": ", race_tab[i], " (", round(race_prop[i], 1), "%)\n", sep = "")
+}
+```
+教育水平分布:
+```{r}
+edu_tab <- table(analysis_data$education)
+edu_prop <- prop.table(edu_tab) * 100
+edu_labels <- c("低于9年级", "9-11年级", "高中毕业", "部分大学", "大学及以上")
+for (i in 1:length(edu_tab)) {
+  cat("  ", edu_labels[i], ": ", edu_tab[i], " (", round(edu_prop[i], 1), "%)\n", sep = "")
+}
+```
+BMI分组分布:
+```{r}
+bmi_tab <- table(analysis_data$bmi_cat)
+bmi_prop <- prop.table(bmi_tab) * 100
+for (i in 1:length(bmi_tab)) {
+  cat("  ", names(bmi_tab)[i], ": ", bmi_tab[i], " (", round(bmi_prop[i], 1), "%)\n", sep = "")
+}
+```
+
+## 7.3 最终高血压患病率
+————————最终样本量————————
+```{r}
+hypertension_rate_final <- mean(analysis_data$hypertension == 1, na.rm = TRUE) * 100  
+cat("总样本量：", nrow(analysis_data), "人\n")
+cat("高血压患病率：", round(hypertension_rate_final, 1), "%\n\n")
+```
+————————各BMI组样本量及患病率 ————————
+```{r}
+bmi_summary <- analysis_data %>%
+  dplyr::group_by(bmi_cat) %>%
+  dplyr::summarise(
+    n = n(),
+    prevalence = round(mean(hypertension == 1) * 100, 1)
+  )
+print(bmi_summary)
+```
+———————— 各协变量分布 ————————
+性别 (1=男, 2=女)：
+```{r}
+print(table(analysis_data$gender))
+```
+种族 (1=墨裔, 2=其他西裔, 3=非西裔白人, 4=非西裔黑人, 5=非西裔亚洲人，6=其他种族 - 包括多种族):
+```{r}
+print(table(analysis_data$race))
+```
+教育水平 (1=低于9年级, 2=9-11年级, 3=高中, 4=部分大学, 5=大学及以上):
+```{r}
+print(table(analysis_data$education))
+```
+
+## 7.4 基线特征表
+
+```{r tableone, results='hide'}
+table_vars <- c("bmi_cat", "hypertension", "gender", "education", "race")  #在表格里展示这5个变量
+cat_vars <- c("bmi_cat", "hypertension", "gender", "education", "race")  #分类变量
+group_var <- "bmi_cat"  #分组变量
+
+table_one <- CreateTableOne(  #CreateTableOne会自动对每个变量进行组间比较检验
+  vars = table_vars,  #要分析的变量
+  strata = group_var,  #分组依据
+  data = analysis_data,  #数据来源
+  factorVars = cat_vars  #分类变量
+)
+
+table_one_matrix <- print(table_one, showAllLevels = TRUE, quote = FALSE, noSpaces = TRUE)  
+```
+
+```{r}
+kable(table_one_matrix, 
+      caption = "表1. 不同BMI分组的研究对象基线特征比较",  #给表格加标题
+      booktabs = TRUE) %>%  #使用专业的三线表格式（顶部线、中间线、底部线）
+  kable_styling(latex_options = c("striped", "hold_position"), font_size = 12) 
+```
+
+# 8.不同BMI分组的高血压患病率柱状图
+
+```{r warning=FALSE}
+#研究问题：高血压患病率是否随BMI升高而增加？
+# 计算各BMI组的患病率及标准误（用于添加误差线）
+bmi_plot_data <- analysis_data %>%
+  dplyr::group_by(bmi_cat) %>%  #按BMI分组（正常/超重/肥胖），分成3个小组
+  dplyr::summarise(
+    n = n(),
+    prevalence = mean(hypertension == 1, na.rm = TRUE) * 100,
+    se = sqrt(prevalence * (100 - prevalence) / n)  # 标准误
+  )
+
+# 确保BMI分组顺序正确
+bmi_plot_data$bmi_cat <- factor(bmi_plot_data$bmi_cat, 
+                                levels = c("Normal weight", "Overweight", "Obese"))
+
+# 绘制柱状图
+p1 <- ggplot(bmi_plot_data, aes(x = bmi_cat, y = prevalence, fill = bmi_cat)) +
+  geom_col(width = 0.6, color = "black", size = 0.8) +  #边框粗细
+  geom_errorbar(aes(ymin = prevalence - 1.96 * se, 
+                    ymax = prevalence + 1.96 * se),
+                width = 0.2, size = 0.8) +
+  geom_text(aes(label = paste0(round(prevalence, 1), "%")),  #在图上添加文字
+            vjust = -1.5, size = 5, fontface = "bold") +  #文字在柱子上方1.5个字符高度
+  scale_fill_manual(values = c("Normal weight" = "#2E86AB", 
+                               "Overweight" = "#A23B72", 
+                               "Obese" = "#F18F01")) +
+  labs(
+    title = "不同BMI分组的高血压患病率比较",
+    subtitle = "NHANES 2021-2023 数据",
+    x = "BMI分组",
+    y = "高血压患病率 (%)",
+    caption = "注：误差线表示95%置信区间"
+  ) +
+  theme_minimal(base_size = 14) +  #使用简洁主题，基础字号14
+  theme(
+    legend.position = "none",  #	不显示图例（因为柱子颜色一目了然）
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),  #主标题居中、加粗、16号字
+    plot.subtitle = element_text(hjust = 0.5, size = 12, color = "gray50"),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(size = 12),
+    panel.grid.major.x = element_blank(),  #去掉X轴网格线（垂直的）
+    panel.grid.minor.y = element_blank()
+  )
+
+print(p1)
+```
+
+# 9.Logistic回归分析
+
+## 9.1 单因素Logistic回归分析
+
+```{r}
+# 研究问题：BMI分组是否与高血压患病风险相关？
+# 以正常体重组为参照，分别计算超重组和肥胖组的OR值
+# 将bmi_cat转换为因子并设置参照组
+analysis_data <- analysis_data %>%
+  dplyr::mutate(
+    bmi_cat = factor(bmi_cat, levels = c("Normal weight", "Overweight", "Obese"))
+  )
+
+# 单因素Logistic回归：仅纳入BMI分组
+model_unadjusted <- glm(hypertension ~ bmi_cat,
+                        data = analysis_data, 
+                        family = binomial(link = "logit"))
+
+# 提取结果并计算OR和95% CI
+summary_unadjusted <- summary(model_unadjusted)
+coef_unadjusted <- summary_unadjusted$coefficients
+
+# 提取OR和置信区间
+or_unadjusted <- exp(coef_unadjusted[, 1])  #指数函数，将回归系数转换为比值比（OR），提取第1列
+ci_unadjusted <- exp(confint(model_unadjusted))  #95%置信区间
+
+# 整理结果表格
+unadjusted_results <- data.frame(
+  Variable = rownames(coef_unadjusted),
+  OR = round(or_unadjusted, 3),  #保留3位小数
+  CI_95_lower = round(ci_unadjusted[, 1], 3),
+  CI_95_upper = round(ci_unadjusted[, 2], 3),
+  P_value = round(coef_unadjusted[, 4], 3)
+)
+```
+【单因素Logistic回归结果（未调整）】：
+参照组：正常体重（Normal weight）
+```{r}
+print(unadjusted_results)
+```
+计算各组的预测概率：
+```{r}
+pred_prob_unadjusted <- predict(model_unadjusted, type = "response")  #返回概率值（0-1之间）而非线性预测值
+cat("  正常组：", round(mean(pred_prob_unadjusted[analysis_data$bmi_cat == "Normal weight"]) * 100, 1), "%\n")
+cat("  超重组：", round(mean(pred_prob_unadjusted[analysis_data$bmi_cat == "Overweight"]) * 100, 1), "%\n")
+cat("  肥胖组：", round(mean(pred_prob_unadjusted[analysis_data$bmi_cat == "Obese"]) * 100, 1), "%\n")
+```
+
+## 9.2 多因素Logistic回归分析
+
+```{r}
+analysis_data <- analysis_data %>%
+  mutate(
+    race_f = factor(race, 
+                    levels = 1:6,
+                    labels = c("墨裔", "其他西裔", "非西裔白人", "非西裔黑人", "非西裔亚洲人", "其他种族 - 包括多种族")),
+    education_f = factor(education,
+                         levels = 1:5,
+                         labels = c("低于9年级", "9-11年级", "高中", "部分大学", "大学及以上"))
+  )
+
+# 重新拟合模型
+model_adjusted <- glm(hypertension ~ bmi_cat + RIDAGEYR + gender + race_f + education_f, 
+                      data = analysis_data, 
+                      family = binomial(link = "logit"))
+# 提取结果
+summary_adjusted <- summary(model_adjusted)
+coef_adjusted <- summary_adjusted$coefficients
+
+# 计算OR和95% CI
+or_adjusted <- exp(coef_adjusted[, 1])
+ci_adjusted <- exp(confint(model_adjusted))
+
+# 整理结果表格
+adjusted_results <- data.frame(
+  Variable = rownames(coef_adjusted),
+  OR = round(or_adjusted, 3),
+  CI_95_lower = round(ci_adjusted[, 1], 3),
+  CI_95_upper = round(ci_adjusted[, 2], 3),
+  P_value = round(coef_adjusted[, 4], 3)
+)
+```
+【多因素Logistic回归结果（调整年龄、性别、种族、教育水平）】：
+参照组：正常体重（Normal weight）
+```{r}
+print(adjusted_results)
+```
+【模型拟合优度检验】：
+```{r}
+cat("  AIC:", round(AIC(model_adjusted), 2), "\n")
+cat("  残差偏差:", round(deviance(model_adjusted), 2), "\n")
+```
+
+## 9.3 森林图展示多因素Logistic回归结果
+
+```{r}
+# 准备森林图数据：仅显示BMI分组的OR值（多因素调整后）
+forest_data <- adjusted_results[1:3, ]  # 只取BMI分组的三行
+
+# 准备森林图的数据框
+forest_df <- data.frame(
+  mean = forest_data$OR,
+  lower = forest_data$CI_95_lower,
+  upper = forest_data$CI_95_upper,
+  label = c("正常（参照）", "超重", "肥胖")
+)
+print(forest_df)
+
+# 准备表格数据
+tabletext <- cbind(
+  c("BMI分组", "正常", "超重", "肥胖"),
+  c("OR (95% CI)", 
+    paste0(forest_df$mean[1], " (", forest_df$lower[1], "-", forest_df$upper[1], ")"),
+    paste0(forest_df$mean[2], " (", forest_df$lower[2], "-", forest_df$upper[2], ")"),
+    paste0(forest_df$mean[3], " (", forest_df$lower[3], "-", forest_df$upper[3], ")")),
+  c("P值", 
+    paste0(forest_data$P_value[1]),
+    paste0(forest_data$P_value[2]),
+    paste0(forest_data$P_value[3]))
+)
+print(tabletext)
+
+# 绘制森林图
+forestplot(labeltext = tabletext,
+           mean = c(NA, forest_df$mean),
+           lower = c(NA, forest_df$lower),
+           upper = c(NA, forest_df$upper),
+           graph.pos = 2,  #图位置第2列
+           graphwidth = unit(0.6, "npc"),
+           xlab = "比值比 (OR) 及 95% 置信区间",
+           txt_gp = fpTxtGp(label = gpar(cex = 0.9)),  #字符缩放0.9倍
+           col = fpColors(box = "#2E86AB", line = "#2E86AB"),
+           lwd.ci = 2,  #设置置信区间横线的线宽
+           boxsize = 0.3,  #设置森林图中方块的大小
+           ci.vertices = TRUE,  #在置信区间横线的两端显示小竖线（顶点）
+           ci.vertices.height = 0.1,  #设置置信区间端点（小竖线）的高度
+           zero = 1,  #在 X 轴的 1 处绘制一条垂直参照线
+           title = "BMI与高血压关联的多因素Logistic回归森林图\n（调整年龄、性别、种族、教育水平）")
+```
+
+## 9.4 多重共线性检验（VIF）
+```{r}
+vif_results <- vif(model_adjusted)
+print(vif_results)
+```
+  VIF解释：VIF > 10表示严重共线性，VIF > 5需要关注。
+  VIF结论：多重共线性检验通过，模型中各自变量之间相互独立，无需担心共线性问题影响结果可靠性。
+
+# 10.趋势性检验
+```{r}
+# BMI分组作为连续变量进行趋势检验
+analysis_data <- analysis_data %>%
+  mutate(
+    bmi_cat_num = case_when(
+      bmi_cat == "Normal weight" ~ 1,
+      bmi_cat == "Overweight" ~ 2,
+      bmi_cat == "Obese" ~ 3
+    )
+  )
+
+# 调整协变量后检验趋势
+model_trend <- glm(hypertension ~ bmi_cat_num + RIDAGEYR + gender + race_f + education_f,
+                   data = analysis_data,
+                   family = binomial(link = "logit"))
+summary_trend <- summary(model_trend)
+cat("  趋势检验P值:", round(summary_trend$coefficients["bmi_cat_num", 4], 3), "\n")
+```
+  P < 0.05 表示BMI与高血压存在线性趋势关系。
+
+# 11.分层分析（按性别分层）
+==================== 按性别分层分析 ====================
+```{r}
+# 按性别分层的Logistic回归
+# 男性
+analysis_data_male <- analysis_data %>% filter(gender == 1)
+model_male <- glm(hypertension ~ bmi_cat + RIDAGEYR + race_f + education_f,
+                  data = analysis_data_male,
+                  family = binomial(link = "logit"))
+summary_male <- summary(model_male)
+or_male <- exp(coef(summary_male)[2:3, 1])  # 提取超重和肥胖的OR
+ci_male <- exp(confint(model_male))[2:3, ]
+
+cat("男性 (n =", nrow(analysis_data_male), "):\n")
+cat("  超重 OR:", round(or_male[1], 3), 
+    " (95% CI:", round(ci_male[1,1], 3), "-", round(ci_male[1,2], 3), ")\n")
+cat("  肥胖 OR:", round(or_male[2], 3), 
+    " (95% CI:", round(ci_male[2,1], 3), "-", round(ci_male[2,2], 3), ")\n")
+
+# 女性
+analysis_data_female <- analysis_data %>% filter(gender == 2)
+model_female <- glm(hypertension ~ bmi_cat + RIDAGEYR + race_f + education_f,
+                    data = analysis_data_female,
+                    family = binomial(link = "logit"))
+summary_female <- summary(model_female)
+or_female <- exp(coef(summary_female)[2:3, 1])
+ci_female <- exp(confint(model_female))[2:3, ]
+
+cat("女性 (n =", nrow(analysis_data_female), "):\n")
+cat("  超重 OR:", round(or_female[1], 3), 
+    " (95% CI:", round(ci_female[1,1], 3), "-", round(ci_female[1,2], 3), ")\n")
+cat("  肥胖 OR:", round(or_female[2], 3), 
+    " (95% CI:", round(ci_female[2,1], 3), "-", round(ci_female[2,2], 3), ")\n")
+```
+  分层分析结论：无论男性还是女性，超重和肥胖均显著增加高血压风险（P<0.05）；肥胖阶段男性风险增幅（OR=3.26）略高于女性（OR=2.99），提示男性从体重控制中可能获益更大。
+
+# 12.交互作用检验
+==================== 交互作用检验 (BMI × 性别) ====================
+```{r}
+# BMI × 性别交互作用检验
+model_interaction <- glm(hypertension ~ bmi_cat * gender + RIDAGEYR + race_f + education_f,  
+                         data = analysis_data,
+                         family = binomial(link = "logit"))
+anova_interaction <- anova(model_adjusted, model_interaction, test = "Chisq")
+cat("  P for interaction:", round(anova_interaction$`Pr(>Chi)`[2], 3), "\n")
+```
+  交互作用检验结论：P > 0.05表示不存在显著交互作用，说明BMI对高血压的影响在男女之间无显著差异，性别不修饰BMI与高血压的关联强度，因此以总人群分析结果为准即可。
+
+# 13. 敏感性分析：剔除年龄≥80岁
+==================== 敏感性分析 (剔除≥80岁) ====================
+```{r}
+analysis_data_sens <- analysis_data %>% filter(RIDAGEYR < 80)
+
+model_sens <- glm(hypertension ~ bmi_cat + RIDAGEYR + gender + race_f + education_f,
+                  data = analysis_data_sens,
+                  family = binomial(link = "logit"))
+summary_sens <- summary(model_sens)
+or_sens <- exp(coef(summary_sens)[2:3, 1])
+ci_sens <- exp(confint(model_sens))[2:3, ]
+
+cat("剔除高龄后样本量:", nrow(analysis_data_sens), "\n")
+cat("  超重 OR:", round(or_sens[1], 3), 
+    " (95% CI:", round(ci_sens[1,1], 3), "-", round(ci_sens[1,2], 3), ")\n")
+cat("  肥胖 OR:", round(or_sens[2], 3), 
+    " (95% CI:", round(ci_sens[2,1], 3), "-", round(ci_sens[2,2], 3), ")\n")
+```
+  敏感性分析结论：剔除高龄人群后，超重和肥胖的OR值均略有升高，OR值变化幅度在可接受范围内（<15%），且置信区间仍有重叠，证明本研究结果具有较好的稳健性。
+
+# 14.结果展示
+
+```{r}
+# 合并所有结果为一张综合表
+final_table <- data.frame(
+  指标 = c("样本量", "高血压患病率", "超重OR (多因素)", "肥胖OR (多因素)", 
+           "趋势检验P值", "交互作用P值", "模型AIC"),
+  结果 = c(
+    paste0(nrow(analysis_data), "人"),
+    paste0(round(hypertension_rate_final, 1), "%"),
+    paste0(round(adjusted_results$OR[2], 2), " (", 
+           round(adjusted_results$CI_95_lower[2], 2), "-", 
+           round(adjusted_results$CI_95_upper[2], 2), ")"),
+    paste0(round(adjusted_results$OR[3], 2), " (", 
+           round(adjusted_results$CI_95_lower[3], 2), "-", 
+           round(adjusted_results$CI_95_upper[3], 2), ")"),
+    round(summary_trend$coefficients["bmi_cat_num", 4], 3),
+    round(anova_interaction$`Pr(>Chi)`[2], 3),
+    round(AIC(model_adjusted), 1)
+  )
+)
+final_table
+```
+  超重（OR=1.61）和肥胖（OR=3.19）均显著增加高血压风险，且存在剂量-反应关系（P<0.001），性别无修饰效应（交互P=0.3948），敏感性分析结果稳健。
+
+# 15.研究结论和局限性
+
+## 15.1 研究结论
+
+  本研究基于美国国家健康与营养调查（NHANES）2021-2023年数据，纳入5876名20岁及以上成人，通过多因素Logistic回归分析，系统探讨了BMI分类与高血压患病风险之间的关联。
+
+① 核心结果：
+
+以正常体重组为参照，调整年龄、性别、种族、教育水平后，超重组和肥胖组的高血压风险均显著增加。超重组OR值为1.61（95%CI：1.36–1.90），风险增幅为60.6%；肥胖组OR值为3.19（95%CI：2.72–3.75），风险增幅高达219.4%。
+
+② 核心结论：
+
+超重和肥胖均是高血压的独立危险因素，且肥胖对高血压风险的影响（风险增加219.4%）远大于超重（风险增加60.6%）。
+
+③ 剂量-反应关系：
+
+趋势性检验结果显示，P < 0.001，表明随着BMI分级的升高（正常体重→超重→肥胖），高血压患病风险呈现明显的递增趋势，进一步证实了BMI与高血压之间存在线性剂量-反应关系。
+
+④ 性别分层分析：
+
+按性别分层后，男性人群中超重OR值为1.55（95%CI：1.22–1.97），肥胖OR值为3.33（95%CI：2.63–4.24）；女性人群中超重OR值为1.62（95%CI：1.29–2.05），肥胖OR值为3.01（95%CI：2.42–3.74）。男女两性中BMI与高血压的关联方向一致。
+
+⑤ 交互作用检验：
+
+BMI与性别的交互作用P值为0.395（> 0.05），说明性别不修饰BMI与高血压的关联强度，即BMI对高血压的影响在男女之间无显著差异。
+
+⑥ 结果稳健性验证：
+
+多重共线性检验显示，各自变量方差膨胀因子（VIF）最大为1.317，远低于阈值10，提示不存在共线性问题。多因素模型相比单因素模型AIC降低了1147.4，表明模型拟合显著改善。敏感性分析中剔除80岁及以上高龄人群后，超重OR值为1.72，肥胖OR值为3.34，与主分析结果一致，证明本研究结果具有较好的稳健性。
+
+⑦ 公共卫生意义：
+
+本研究的发现对高血压防控具有重要的实践指导价值。首先，体重管理是高血压防控的关键策略：超重和肥胖人群应作为高血压筛查和干预的重点人群，尤其应重点关注肥胖人群的血压管理。其次，预防关口应当前移：即使在超重阶段，高血压风险已显著增加60.6%，应将体重控制目标设定为维持正常体重范围（BMI < 25 kg/m²），而非等到肥胖阶段才开始干预。第三，体重管理策略具有性别通用性：由于性别不修饰BMI与高血压的关联，体重管理策略无需因性别而区分，可统一推行。最后，结合我国日益增长的超重和肥胖率（据《中国居民营养与慢性病状况报告（2020年）》，我国成年居民超重肥胖率已超过50%），加强体重管理是降低高血压患病率的重要路径，这与"健康中国2030"战略中慢性病防控的目标高度契合。
+
+## 15.2 研究局限性
+  
+  尽管本研究基于全国代表性数据，采用严谨的统计分析策略，但仍存在以下局限性：
+
+① 研究设计层面：
+
+本研究采用横断面研究设计，无法确定BMI与高血压之间的时间先后顺序，因而不能做出因果推断。同时，缺乏纵向随访数据，无法评估BMI长期变化对高血压发病的动态影响。
+
+改进：未来研究可采用前瞻性队列设计或孟德尔随机化方法，进一步探讨BMI与高血压的因果关系。
+
+② 变量测量层面：
+
+高血压的定义依赖于自报问卷数据（BPQ020和BPQ150），未纳入实际血压测量值，可能存在错分偏倚。BMI基于单次测量，未能反映长期体重变化或体重波动。此外，协变量仅纳入了年龄、性别、种族和教育水平，未纳入饮食结构、体力活动、吸烟、饮酒等潜在混杂因素，可能存在残余混杂。
+
+改进：未来研究应纳入客观血压测量数据，并收集更全面的协变量信息以增强混杂控制。
+
+③ 样本代表性层面：
+
+NHANES数据针对美国人群设计，其种族构成与中国人群差异较大，研究结论的外推性有限。此外，本研究未使用NHANES的复杂抽样设计权重进行加权分析，结果可能无法完全代表美国总体人群。
+
+改进：未来研究应在中国人群数据（如CHNS、CKB）中验证本研究的结论，并在NHANES分析中正确使用调查权重以增强代表性。
+
+④ 分析方法层面：
+
+本研究采用完整案例分析策略，直接删除了含缺失值的个体，可能存在选择偏倚。BMI切点采用WHO通用标准（18.5、25、30 kg/m²），不同种族间最佳切点可能存在差异。此外，未排除服用降压药物的人群，可能影响高血压分类的准确性；亚组分析未进行多重比较校正，可能存在I类错误膨胀的风险。
+
+改进：未来研究可使用多重插补方法处理缺失值，探索适用于中国人群的BMI最佳切点，并进行多重比较校正以控制假阳性率。
+
+⑤ 局限性总结：
+
+综上所述，本研究存在横断面设计无法推断因果、依赖自报数据可能存在错分偏倚、协变量不够全面等局限性，在解读结果时需保持谨慎。然而，综合各项敏感性分析结果来看，这些局限性不足以否定BMI与高血压之间的显著关联，本研究的结论仍具有重要的参考价值，可为高血压防控策略的制定提供流行病学证据支持。
+
+# 16.最终总结
+
+```{r}
+cat("本研究基于NHANES 2021-2023数据证实，超重（OR = ", round(adjusted_results$OR[2], 2), "，95% CI: ", round(adjusted_results$CI_95_lower[2], 2), "-", round(adjusted_results$CI_95_upper[2], 2), "）和肥胖（OR = ", round(adjusted_results$OR[3], 2), "，95% CI: ", round(adjusted_results$CI_95_lower[3], 2), "-", round(adjusted_results$CI_95_upper[3], 2), "）均显著增加高血压风险，且呈剂量-反应关系（P < 0.001）。性别不修饰该关联（P = ", round(anova_interaction$`Pr(>Chi)`[2], 3), "），敏感性分析证明结果稳健。
+")
+```
