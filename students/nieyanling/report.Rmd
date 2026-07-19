@@ -1,6 +1,11 @@
 ---
 title: "膳食添加糖摄入与成人血脂异常的关联分析"
-output: html_document
+output:
+  html_document:
+    toc: TRUE               # 开启目录
+    toc_float: TRUE         # 目录悬浮侧边栏（浏览更方便）
+    toc_depth: 3            # 目录抓取到3级标题（##二级、###三级）
+    number_sections: TRUE   # 自动给标题加1、1.1、1.2编号
 date: "2026-06-08"
 ---
 
@@ -8,26 +13,26 @@ date: "2026-06-08"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-##1. 研究背景
-###1.1 心血管疾病的流行病学负担
+## 1. 研究背景
+### 1.1 心血管疾病的流行病学负担
     心血管疾病（CVD）是全球范围内导致死亡和残疾的主要原因之一。根据世界卫生组织（WHO）数据，2019 年全球约有 1790 万人死于心血管疾病，占总死亡人数的 32%。其中，缺血性心脏病和脑卒中是最主要的死亡原因。中国心血管疾病患病率持续上升，现患人数约 3.3 亿，心血管疾病已成为我国居民的首位死因，占城乡居民总死亡原因的 40% 以上。
 
-###1.2 血脂异常是心血管疾病的重要危险因素
+### 1.2 血脂异常是心血管疾病的重要危险因素
     血脂异常是心血管疾病的关键可调控危险因素。大量流行病学研究和随机对照试验证实，血清总胆固醇（TC）、甘油三酯（TG）、低密度脂蛋白胆固醇（LDL-C）水平升高，以及高密度脂蛋白胆固醇（HDL-C）水平降低，均与动脉粥样硬化性心血管疾病（ASCVD）风险增加密切相关。《中国心血管病一级预防指南》指出，控制血脂异常可显著降低心血管事件的发生率和死亡率。
     
 ###1.3 膳食添加糖摄入与血脂异常的关联
    近年来，膳食添加糖对血脂代谢的影响受到广泛关注。添加糖是指在食品加工或制备过程中人为添加的糖类及糖浆，包括蔗糖、果糖、葡萄糖、高果糖玉米糖浆等。与天然存在于水果、蔬菜中的内源性糖不同，添加糖不含微量营养素和膳食纤维，被称为 "空热量" 来源。
 多项研究发现，高添加糖摄入可能通过以下机制影响血脂代谢：增加肝脏甘油三酯合成；降低脂蛋白脂酶活性；诱导胰岛素抵抗；促进小而密 LDL 颗粒形成。
 
-##2. 研究问题
+## 2. 研究问题
    基于上述研究背景，本研究利用2017-2018年美国国家健康与营养调查（NHANES）数据，旨在：
 描述不同添加糖摄入水平下成年人的血脂异常患病情况；分析膳食添加糖摄入与血脂异常的关联；探讨添加糖摄入与血脂的剂量-反应关系；为制定针对性的膳食指南和心血管疾病防控策略提供科学依据。
 
-##3. 数据来源与研究对象
-###3.1 数据来源
+## 3. 数据来源与研究对象
+### 3.1 数据来源
    本研究使用美国国家健康与营养调查（National Health and Nutrition Examination Survey, NHANES）2017-2018年数据。NHANES是一项连续、分层的全国代表性横断面调查，采用复杂多阶段概率抽样设计，每两年为一个周期。所有数据均已公开，可在官方网站下载。
    
-###3.2 研究对象
+### 3.2 研究对象
 本研究纳入标准如下：
 年龄 ≥18 岁的成年人
 完成膳食调查（DR1TOT_J.XPT）
@@ -35,7 +40,7 @@ knitr::opts_chunk$set(echo = TRUE)
 排除标准如下：
 关键变量（添加糖摄入、血脂指标）缺失者
 
-##4. 变量说明
+## 4. 变量说明
 暴露变量：添加糖摄入量（三分位数分组：低 / 中 / 高）
 结局变量：血脂异常（TC≥240mg/dL, TG≥200mg/dL, HDL<40/50mg/dL, LDL≥160mg/dL）
 协变量：年龄、性别、种族、教育、收入、BMI、总能量摄入
@@ -47,18 +52,15 @@ knitr::opts_chunk$set(echo = TRUE)
 library(haven)
 library(dplyr)
 library(tableone)
-setwd("D:/NHANES-2017-2018")
+
 
 # 5.1 读取并合并原始数据
-# 基础数据
-demo   <- read_xpt("DEMO_J.XPT")
-bmx    <- read_xpt("BMX_J.XPT")
-dr1tot <- read_xpt("DR1TOT_J.XPT")
-
-# 读取血脂
-tc_dat    <- read_xpt("TCHOL_J.XPT")   # LBXTC总胆固醇
-tgldl_dat <- read_xpt("TRIGLY_J.XPT")  # LBXTR甘油三酯、LBDLDL低密度
-hdl_dat   <- read_xpt("HDL_J.XPT")     # LBDHDD高密度
+demo   <- read_xpt("doc/DEMO_J.XPT")
+bmx    <- read_xpt("doc/BMX_J.XPT")
+dr1tot <- read_xpt("doc/DR1TOT_J.XPT")
+tc_dat    <- read_xpt("doc/TCHOL_J.XPT")
+tgldl_dat <- read_xpt("doc/TRIGLY_J.XPT")
+hdl_dat   <- read_xpt("doc/HDL_J.XPT")
 
 # 合并四项血脂
 lipid <- tc_dat %>% select(SEQN, LBXTC) %>%
@@ -231,7 +233,7 @@ write.csv(tab_group_export, file="分组描述统计表.csv", row.names = TRUE)
 ```
 
 
-##7.数据可视化
+## 7.数据可视化
 ```{r vis_plot, echo=TRUE}
 # 7.1 绘图包加载与变量分布可视化
 # 加载绘图、拼图工具包
@@ -649,7 +651,7 @@ newdata_linear <- expand.grid(
   RIDAGEYR = mean(df_final$RIDAGEYR, na.rm=T),
   BMXBMI = mean(df_final$BMXBMI, na.rm=T),
   DR1TKCAL = mean(df_final$DR1TKCAL, na.rm=T),
-  RIAGENDR = factor(1)
+  RIAGENDR = 1 
 )
 pred_lin <- predict(linear_hdl, newdata = newdata_linear, interval = "confidence")
 newdata_linear$fit <- pred_lin[,"fit"]
@@ -670,7 +672,7 @@ newdata_grid <- expand.grid(
   RIDAGEYR = mean(df_final$RIDAGEYR, na.rm = T),
   BMXBMI = mean(df_final$BMXBMI, na.rm = T),
   DR1TKCAL = mean(df_final$DR1TKCAL, na.rm = T),
-  RIAGENDR = factor(1)
+  RIAGENDR = 1
 )
 pred_result <- predict(ns_mod, newdata = newdata_grid, interval = "confidence")
 newdata_grid$fit <- pred_result[, "fit"]
@@ -699,7 +701,7 @@ newdata_logit <- expand.grid(
   RIDAGEYR = mean(df_final$RIDAGEYR, na.rm=T),
   BMXBMI = mean(df_final$BMXBMI, na.rm=T),
   DR1TKCAL = mean(df_final$DR1TKCAL, na.rm=T),
-  RIAGENDR = factor(1)
+  RIAGENDR = 1
 )
 pred_prob <- predict(logit_linear, newdata_logit, type = "response", se.fit = TRUE)
 newdata_logit$prob <- pred_prob$fit
@@ -738,12 +740,12 @@ gc()
 ## 9.结果解释
     本研究完成数据预处理、人群基线描述、可视化粗关联、假设检验、分层回归、模型诊断、交互分层、敏感性与非线性剂量反应全套分析，整体结果可概括为5个核心层面：
 
-###9.1 基线人群特征与未校正粗关联特征
+### 9.1 基线人群特征与未校正粗关联特征
     基线描述与单变量粗关联分析显示，研究人群膳食添加糖摄入呈明显右偏分布，少数个体存在极端高摄入，因此采用三分位数分层策略划分暴露组别。
     箱线图、趋势图等可视化结果、Kruskal-Wallis非参数组间检验及Spearman秩相关分析 结论相互印证：膳食添加糖与HDL-C呈负相关、与TG呈正相关，随添加糖摄入升高，HDL 逐步下降、TG持续上升；而TC、LDL-C在不同添加糖分层中分布接近，未观察到显著粗关联。
     同时基线混杂变量存在明显组间不均衡：高BMI、高每日总能量摄入、年轻女性人群在高添加 糖组占比更高。上述人群特征本身可独立影响血脂水平，若不加以校正，会产生混杂偏倚、干扰膳食添加糖与血脂的真实关联判断，因此后续采用分层多因素回归逐层控制混杂。
 
-###9.2 多因素回归核心独立效应
+### 9.2 多因素回归核心独立效应
 (1)分析方法设计
     为消除混杂因素干扰、清晰观察混杂对暴露--血脂关联的影响，统一构构建三层分层校正 回归框架：
     通过自定义函数实现批量建模，仅需输入结局变量、暴露变量2个参数，自动生成 M1、M2、M3 三套回归公式：
@@ -768,13 +770,13 @@ M3 全校正主模型：在M2基础上额外校正BMI、每日总热量摄入，
     纳入 BMI、总热量校正后，高添加糖对低HDL、高TG的风险效应明显放大，再次证实体
 重、总能量摄入是关键混杂变量，不校正会低估高糖带来的血脂紊乱风险。
 
-###9.3 模型可靠性验证
+### 9.3 模型可靠性验证
     VIF 检验无多重共线性，Box-Tidwell检验仅BMI存在微弱非线性；HL拟合优度、ROC-AUC 提示模型预测效果良好；剔除添加糖 1%极端值后重新拟合，主效应无改变，核心结论稳健可 靠。
 
-###9.4 人群效应修饰（交互与亚组分层）
+### 9.4 人群效应修饰（交互与亚组分层）
     添加糖与 BMI、性别存在显著交互作用：肥胖人群、女性群体中，添加糖升高血脂异常风险的作用更强；性别分层回归进一步印证女性对添加糖的血脂损伤更敏感，是膳食干预重点人群。
 
-###9.5 非线性阈值剂量反应
+### 9.5 非线性阈值剂量反应
 1.HDL-C 连续结局（线性回归 vs 自然三次样条 ns (df=4)）
 (1) 图形直观趋势
 线性模型：校正混杂后，膳食添加糖与 HDL-C 呈严格持续下降直线关系，添加糖每升高，
