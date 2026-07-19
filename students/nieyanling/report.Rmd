@@ -2,11 +2,11 @@
 title: "膳食添加糖摄入与成人血脂异常的关联分析"
 output:
   html_document:
-    toc: TRUE               # 开启目录
-    toc_float: TRUE         # 目录悬浮侧边栏（浏览更方便）
-    toc_depth: 3            # 目录抓取到3级标题（##二级、###三级）
-    number_sections: TRUE   # 自动给标题加1、1.1、1.2编号
-date: "2026-06-08"
+    toc: TRUE               
+    toc_float: TRUE        
+    toc_depth: 3            
+    number_sections: TRUE   
+date: "2026-07-19"
 ---
 
 ```{r setup, include=FALSE}
