@@ -1,267 +1,264 @@
 ---
-title: "NHANES 2007–2012 尿镉暴露与桥本甲状腺炎关联分析"
+title: "尿镉与桥本甲状腺炎的相关性分析：基于NHANES 2007-2012"
 author: "gengsiyuan"
-date: "2026-06-29"
-output: word_document
+date: "2026-07-04"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: cosmo
+    highlight: tango
+    code_folding: show
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE, fig.width=9, fig.height=5, dpi=300)
+# 一、研究背景
 
+桥本甲状腺炎（Hashimoto's thyroiditis, HT）是最常见的自身免疫性甲状腺疾病，其发病机制尚未完全阐明。近年来，环境污染物暴露与自身免疫性疾病的关系日益受到关注。镉（Cadmium）是一种广泛存在的环境重金属污染物，具有免疫毒性作用。本研究旨在利用美国国家健康与营养调查（NHANES）2007-2012年的数据，探讨尿镉水平与桥本甲状腺炎之间的关联。
+
+# 二、研究问题
+
+1.独立关联：校正多重混杂后，校正尿镉浓度与桥本甲状腺炎患病风险是否存在独立正向关联；
+
+2.剂量-反应趋势：将尿镉按加权四分位数分为4组，一是与最低暴露组Q1相比，Q2、Q3、Q4 组 HT 患病风险是否显著升高；二是尿镉暴露等级与HT风险是否存在线性递增趋势;
+
+3.易感人群与效应修饰：尿镉-HT关联是否存在性别、年龄分层差异；性别、年龄是否存在显著交互修饰作用。
+
+# 三、数据来源
+
+本研究数据来源于美国国家健康与营养调查（National Health and Nutrition Examination Survey, NHANES）2007-2012年三个周期（2007-2008、2009-2010、2011-2012）的数据。NHANES是由美国国家卫生统计中心（NCHS）开展的全国性横断面调查，采用复杂的多阶段分层整群抽样设计，对美国非住院居民的健康状况进行代表性评估。
+
+## 3.1 数据导入
+
+```{r data_import}
+# 加载包
 library(nhanesA)
 library(tidyverse)
 library(writexl)
 library(survey)
 library(naniar)
-library(gtsummary)
-library(flextable)
-library(broom)
-library(ggplot2)
-library(stringr)
-set.seed(123) 
-    ```
-#一、研究概况与数据来源
-##1.1 研究问题
-本研究基于美国 NHANES 2007–2008、2009–2010、2011–2012 三轮横断面调查数据，探究肌酐校正尿镉重金属暴露与成人桥本甲状腺炎患病风险的关联，依次完成数据整合、清洗、描述统计、多阶段加权 Logistic 回归、四分位数剂量反应、性别/年龄分层亚组分析。
 
-##1.2 数据说明
-本次分析使用 NHANES 官方数据库，包含人口学、人体测量、吸烟问卷、高血压病史、甲状腺自身抗体、尿液镉/肌酐检测六大模块；研究限定纳入 20 岁及以上同时具备尿金属、甲状腺抗体检测的成人样本，采用 NHANES 分层、多阶段抽样权重校正抽样偏倚。
-
-#二、原始数据读取、校验与合并
-##2.1 分周期读取官方数据表
-### 2007-2008 (E周期)
+# 导入2007-2008年数据
 thyroid_0708 <- nhanes("THYROD_E")
 urine_cadmium_0708 <- nhanes("UHM_E")
 demo_0708   <- nhanes("DEMO_E")
 smoke_0708  <- nhanes("SMQ_E")
 bmx_0708    <- nhanes("BMX_E")
 bpq_0708    <- nhanes("BPQ_E")
-### 2009-2010 (F周期)
+
+# 导入2009-2010年数据
 thyroid_0910 <- nhanes("THYROD_F")
 urine_cadmium_0910 <- nhanes("UHM_F")
 demo_0910   <- nhanes("DEMO_F")
 smoke_0910  <- nhanes("SMQ_F")
 bmx_0910    <- nhanes("BMX_F")
 bpq_0910    <- nhanes("BPQ_F")
-### 2011-2012 (G周期)
+
+# 导入2011-2012年数据
 thyroid_1112 <- nhanes("THYROD_G")
 urine_cadmium_1112 <- nhanes("UHM_G")
 demo_1112   <- nhanes("DEMO_G")
 smoke_1112  <- nhanes("SMQ_G")
 bmx_1112    <- nhanes("BMX_G")
 bpq_1112    <- nhanes("BPQ_G")
+```
 
-##2.2 读取完整性校验
-### 校验数据表读取完整性
-obj_check <- c("demo_0708", "bmx_0708", "smoke_0708", "bpq_0708", "thyroid_0708", "urine_cadmium_0708",
-             "demo_0910", "bmx_0910", "smoke_0910", "bpq_0910", "thyroid_0910", "urine_cadmium_0910",
-             "demo_1112", "bmx_1112", "smoke_1112", "bpq_1112", "thyroid_1112", "urine_cadmium_1112")
-exist_result <- sapply(obj_check, exists)
-cat("读取失败的数据表：\n")
-print(obj_check[!exist_result])
-### 校验同模块多周期变量名一致性
-cat("DEMO表列名统一：", identical(names(demo_0708), names(demo_0910)), identical(names(demo_0910), names(demo_1112)),"\n")
-cat("BMX表列名统一：", identical(names(bmx_0708), names(bmx_0910)), identical(names(bmx_0910), names(bmx_1112)),"\n")
-cat("SMQ表列名统一：", identical(names(smoke_0708), names(smoke_0910)), identical(names(smoke_0910), names(smoke_1112)),"\n")
-cat("BPQ表列名统一：", identical(names(bpq_0708), names(bpq_0910)), identical(names(bpq_0910), names(bpq_1112)),"\n")
-cat("THYROID表列名统一：", identical(names(thyroid_0708), names(thyroid_0910)), identical(names(thyroid_0910), names(thyroid_1112)),"\n")
-cat("尿镉检测表列名统一：", identical(names(urine_cadmium_0708), names(urine_cadmium_0910)), identical(names(urine_cadmium_0910), names(urine_cadmium_1112)),"\n")
+## 3.2 变量筛选与合并
 
-##2.3 筛选核心变量、纵向堆叠多周期数据
-### 定义各模块保留分析变量
-demo_vars <- c("SEQN", "WTMEC2YR", "RIDAGEYR", "RIAGENDR", "RIDRETH1", "INDFMPIR", "DMDEDUC2", "SDMVSTRA", "SDMVPSU")
-bmx_vars <- c("SEQN", "BMXBMI")
-smoke_vars <- c("SEQN", "SMQ020")
-bpq_vars <- c("SEQN", "BPQ020")
-thyroid_vars <- c("SEQN", "LBXTPO", "LBXATG")
-cd_vars <- c("SEQN", "URXUCD", "URXUCR")
-### 分周期筛选变量
-demo_0708_sel <- demo_0708 %>% select(all_of(demo_vars))
-demo_0910_sel <- demo_0910 %>% select(all_of(demo_vars))
-demo_1112_sel <- demo_1112 %>% select(all_of(demo_vars))
+```{r data_merge}
+# 定义核心变量
+demo_required <- c("SEQN", "WTMEC2YR", "RIDAGEYR", "RIAGENDR", "RIDRETH1", 
+                   "INDFMPIR", "DMDEDUC2", "SDMVSTRA", "SDMVPSU")
+bmx_required <- c("SEQN", "BMXBMI")
+smoke_required <- c("SEQN", "SMQ020")
+bpq_required <- c("SEQN", "BPQ020")
+thyroid_required <- c("SEQN", "LBXTPO", "LBXATG")
+cadmium_required <- c("SEQN", "URXUCD", "URXUCR")
 
-bmx_0708_sel <- bmx_0708 %>% select(all_of(bmx_vars))
-bmx_0910_sel <- bmx_0910 %>% select(all_of(bmx_vars))
-bmx_1112_sel <- bmx_1112 %>% select(all_of(bmx_vars))
+# 筛选变量
+demo_0708_sel <- demo_0708 %>% select(all_of(demo_required))
+demo_0910_sel <- demo_0910 %>% select(all_of(demo_required))
+demo_1112_sel <- demo_1112 %>% select(all_of(demo_required))
+bmx_0708_sel <- bmx_0708 %>% select(all_of(bmx_required))
+bmx_0910_sel <- bmx_0910 %>% select(all_of(bmx_required))
+bmx_1112_sel <- bmx_1112 %>% select(all_of(bmx_required))
+smoke_0708_sel <- smoke_0708 %>% select(all_of(smoke_required))
+smoke_0910_sel <- smoke_0910 %>% select(all_of(smoke_required))
+smoke_1112_sel <- smoke_1112 %>% select(all_of(smoke_required))
+bpq_0708_sel <- bpq_0708 %>% select(all_of(bpq_required))
+bpq_0910_sel <- bpq_0910 %>% select(all_of(bpq_required))
+bpq_1112_sel <- bpq_1112 %>% select(all_of(bpq_required))
+thyroid_0708_sel <- thyroid_0708 %>% select(all_of(thyroid_required))
+thyroid_0910_sel <- thyroid_0910 %>% select(all_of(thyroid_required))
+thyroid_1112_sel <- thyroid_1112 %>% select(all_of(thyroid_required))
+cadmium_0708_sel <- urine_cadmium_0708 %>% select(all_of(cadmium_required))
+cadmium_0910_sel <- urine_cadmium_0910 %>% select(all_of(cadmium_required))
+cadmium_1112_sel <- urine_cadmium_1112 %>% select(all_of(cadmium_required))
 
-smoke_0708_sel <- smoke_0708 %>% select(all_of(smoke_vars))
-smoke_0910_sel <- smoke_0910 %>% select(all_of(smoke_vars))
-smoke_1112_sel <- smoke_1112 %>% select(all_of(smoke_vars))
-
-bpq_0708_sel <- bpq_0708 %>% select(all_of(bpq_vars))
-bpq_0910_sel <- bpq_0910 %>% select(all_of(bpq_vars))
-bpq_1112_sel <- bpq_1112 %>% select(all_of(bpq_vars))
-
-thyroid_0708_sel <- thyroid_0708 %>% select(all_of(thyroid_vars))
-thyroid_0910_sel <- thyroid_0910 %>% select(all_of(thyroid_vars))
-thyroid_1112_sel <- thyroid_1112 %>% select(all_of(thyroid_vars))
-
-cadmium_0708_sel <- urine_cadmium_0708 %>% select(all_of(cd_vars))
-cadmium_0910_sel <- urine_cadmium_0910 %>% select(all_of(cd_vars))
-cadmium_1112_sel <- urine_cadmium_1112 %>% select(all_of(cd_vars))
-### 纵向合并三年数据
+# 纵向合并三个周期
 demo_all    <- bind_rows(demo_0708_sel, demo_0910_sel, demo_1112_sel)
 bmx_all     <- bind_rows(bmx_0708_sel, bmx_0910_sel, bmx_1112_sel)
 smoke_all   <- bind_rows(smoke_0708_sel, smoke_0910_sel, smoke_1112_sel)
 bpq_all     <- bind_rows(bpq_0708_sel, bpq_0910_sel, bpq_1112_sel)
 thyroid_all <- bind_rows(thyroid_0708_sel, thyroid_0910_sel, thyroid_1112_sel)
 cadmium_all <- bind_rows(cadmium_0708_sel, cadmium_0910_sel, cadmium_1112_sel)
-### 样本量与重复ID校验
-cat("人口学总样本：", nrow(demo_all), "重复受试者：", demo_all %>% count(SEQN) %>% filter(n>1) %>% nrow(),"\n")
-cat("BMI总样本：", nrow(bmx_all), "重复受试者：", bmx_all %>% count(SEQN) %>% filter(n>1) %>% nrow(),"\n")
-cat("吸烟问卷总样本：", nrow(smoke_all), "重复受试者：", smoke_all %>% count(SEQN) %>% filter(n>1) %>% nrow(),"\n")
-cat("高血压问卷总样本：", nrow(bpq_all), "重复受试者：", bpq_all %>% count(SEQN) %>% filter(n>1) %>% nrow(),"\n")
-cat("甲状腺检测总样本：", nrow(thyroid_all), "重复受试者：", thyroid_all %>% count(SEQN) %>% filter(n>1) %>% nrow(),"\n")
-cat("尿镉检测总样本：", nrow(cadmium_all), "重复受试者：", cadmium_all %>% count(SEQN) %>% filter(n>1) %>% nrow(),"\n")
 
-##2.4 多表横向合并总数据集、筛选成人样本
-### 以尿镉数据集为主表，左连接全部协变量与结局数据
+# 横向合并
 data_merged <- cadmium_all %>%
   left_join(thyroid_all, by = "SEQN") %>%
   left_join(demo_all, by = "SEQN") %>%
   left_join(bmx_all, by = "SEQN") %>%
   left_join(smoke_all, by = "SEQN") %>%
   left_join(bpq_all, by = "SEQN")
-### 合并基础校验
-cat("原始尿镉样本量：", nrow(cadmium_all), "合并后总样本量：", nrow(data_merged),"\n")
-dup_id <- data_merged %>% count(SEQN) %>% filter(n > 1)
-cat("合并后重复受试者数量：", nrow(dup_id),"\n")
-cat("甲状腺抗体匹配比例：", round(sum(!is.na(data_merged$LBXTPO)) / nrow(data_merged),3),"\n")
-cat("抽样权重匹配比例：", round(sum(!is.na(data_merged$WTMEC2YR)) / nrow(data_merged),3),"\n")
-cat("BMI数据匹配比例：", round(sum(!is.na(data_merged$BMXBMI)) / nrow(data_merged),3),"\n")
-### 构建6年整合抽样权重（2年权重/3）
-data_merged <- data_merged %>% mutate(wt_6yr = WTMEC2YR / 3)
-### 仅保留20岁及以上成人
-cat("未筛选年龄总样本：", nrow(data_merged),"\n")
+
+# 计算6年权重
+data_merged <- data_merged %>%
+  mutate(wt_6yr = WTMEC2YR/3)
+```
+
+## 3.3 研究对象纳入与排除标准
+
+### 纳入标准
+
+1. 年龄 ≥ 20 周岁；
+2. 具有完整的尿镉（URXUCD）、尿肌酐（URXUCR）、甲状腺过氧化物酶抗体（LBXTPO）及甲状腺球蛋白抗体（LBXATG）检测数据；
+3. 具有有效的抽样权重（WTMEC2YR）。
+
+### 排除标准
+
+1. 年龄 < 20 周岁；
+2. 核心变量（尿镉、甲状腺抗体）存在任一缺失；
+3. 抽样权重缺失或为零。
+
+### 最终纳入样本
+
+本研究初始纳入年龄 ≥ 20 周岁且具有核心检测指标的个体共 5,768 例，经完整病例分析剔除存在缺失值的样本后，最终纳入**4,638**例研究对象进行分析。
+
+# 四、变量说明
+
+## 4.1 结局变量（桥本甲状腺炎）
+
+桥本甲状腺炎的定义基于血清甲状腺自身抗体水平：
+- **甲状腺过氧化物酶抗体（TPOAb）> 9 IU/mL** 或 **甲状腺球蛋白抗体（TgAb）> 4 IU/mL** 定义为阳性
+- 两者均阴性且均有检测值定义为阴性
+
+## 4.2 暴露变量（尿镉）
+
+尿镉浓度经尿肌酐校正，计算公式为：
+- **校正尿镉（μg/g 肌酐）= 尿镉（μg/L）/ 尿肌酐（mg/dL）× 1000**
+
+## 4.3 协变量
+
+本研究纳入的协变量包括：
+- **连续变量**：年龄、身体质量指数（BMI）、贫困收入比（PIR）
+- **分类变量**：性别（男/女）、种族（白人/黑人/西班牙裔/其他）、教育程度（低于高中/高中/大学及以上）、吸烟状况（从不吸烟/吸烟）、高血压（有/无）
+
+# 五、研究方法
+
+## 5.1 数据清洗
+
+```{r data_cleaning}
+# 筛选年龄≥20岁成人
 data_clean <- data_merged %>% filter(RIDAGEYR >= 20)
-cat("≥20岁成人样本量：", nrow(data_clean),"\n")
 
-#三、数据清洗、缺失探查、变量重编码
-##3.1 无效编码转换缺失、缺失率与异常值探查
-### 定义关键变量、连续变量列表
-key_vars <- c("URXUCD", "LBXTPO", "LBXATG", "RIDAGEYR", "RIAGENDR", "BMXBMI", "WTMEC2YR", "SMQ020", "BPQ020", "DMDEDUC2", "INDFMPIR")
-cont_vars <- c("URXUCD", "LBXTPO", "LBXATG", "RIDAGEYR", "BMXBMI", "INDFMPIR")
-### 777/888/999统一转换NA
+# 特殊编码转NA
 data_clean <- data_clean %>%
-  mutate(across(where(is.numeric), ~ifelse(. %in% c(777,888,999), NA, .)))
-### 关键变量缺失百分比统计
-missing_summary <- data_clean %>%
-  summarise(across(all_of(key_vars), ~ round(mean(is.na(.)) * 100, 2))) %>%
-  pivot_longer(everything(), names_to = "变量名称", values_to = "缺失百分比(%)")
-print(missing_summary)
-### IQR法识别连续变量极端异常值
-for(var in cont_vars){
-  vec <- data_clean[[var]]
-  valid_n <- sum(!is.na(vec))
-  q1 <- quantile(vec, 0.25, na.rm=T)
-  q3 <- quantile(vec, 0.75, na.rm=T)
-  iqr <- q3 - q1
-  outlier_num <- sum(vec < q1 - 1.5*iqr | vec > q3 + 1.5*iqr, na.rm=T)
-  cat(var, "异常值数量：", outlier_num, "占有效样本比例：", round(outlier_num/valid_n*100,2), "%\n")
-}
+  mutate(across(where(is.numeric), ~ na_if(na_if(na_if(., 777), 888), 999)))
 
-##3.2 缺失分布可视化
-gg_miss_var(data_clean, show_pct = TRUE) +
-  labs(title = "各关键变量缺失分布情况", x = "变量", y = "缺失百分比") +
-  theme_bw()
-  
-##3.3 暴露、结局、分类协变量构建
+# 定义结局和尿镉校正
 data_clean <- data_clean %>%
   mutate(
-    # 肌酐校正尿镉，单位μg/g肌酐
-    URXUCD_cr = URXUCD / URXUCR * 1000,
-    # 桥本甲状腺炎结局判定规则：任一抗体升高即阳性，双阴性才判定阴性
     hashimoto = case_when(
-      (LBXTPO > 9 & !is.na(LBXTPO)) | (LBXATG > 4 & !is.na(LBXATG)) ~ 1,
-      !is.na(LBXTPO) & !is.na(LBXATG) & LBXTPO <=9 & LBXATG <=4 ~ 0,
+      LBXTPO > 9 | LBXATG > 4 ~ 1,
+      !is.na(LBXTPO) & !is.na(LBXATG) ~ 0,
       TRUE ~ NA_real_
     ),
-    # 性别分类
-    sex = factor(RIAGENDR, levels = c(1,2), labels = c("男", "女")),
-    # 种族分类
+    URXUCD_cr = URXUCD / URXUCR * 1000
+  )
+
+# 转换分类协变量
+data_clean <- data_clean %>%
+  mutate(
+    sex = factor(RIAGENDR, levels = c("Male", "Female"), labels = c("男", "女")),
     race = factor(
       case_when(
-        RIDRETH1 %in% c(3,4) ~ "西班牙裔",
-        RIDRETH1 == 1 ~ "白人",
-        RIDRETH1 == 2 ~ "黑人",
+        RIDRETH1 %in% c("Mexican American", "Other Hispanic", 3, 4) ~ "西班牙裔",
+        RIDRETH1 %in% c("Non-Hispanic White", 1) ~ "白人",
+        RIDRETH1 %in% c("Non-Hispanic Black", 2) ~ "黑人",
         TRUE ~ "其他"
       ),
       levels = c("白人", "黑人", "西班牙裔", "其他")
     ),
-    # 教育程度分层
     education = factor(
       case_when(
-        DMDEDUC2 %in% c(1,2) ~ "低于高中",
-        DMDEDUC2 == 3 ~ "高中",
-        DMDEDUC2 %in% c(4,5) ~ "大学及以上",
+        grepl("Less than 9th|Less Than 9th|9-11th grade", DMDEDUC2, ignore.case = TRUE) ~ "低于高中",
+        grepl("High school graduate|High School Grad|GED", DMDEDUC2, ignore.case = TRUE) ~ "高中",
+        grepl("College graduate|Some college|AA degree", DMDEDUC2, ignore.case = TRUE) ~ "大学及以上",
         TRUE ~ NA_character_
       ),
       levels = c("低于高中", "高中", "大学及以上")
     ),
-    # 吸烟状态
     smoke = factor(
       case_when(
-        SMQ020 == 2 ~ "从不吸烟",
-        SMQ020 == 1 ~ "吸烟",
+        SMQ020 %in% c("No", 2) ~ "从不吸烟",
+        SMQ020 %in% c("Yes", 1) ~ "吸烟",
         TRUE ~ NA_character_
       ),
       levels = c("从不吸烟", "吸烟")
     ),
-    # 高血压病史
     hypertension = factor(
       case_when(
-        BPQ020 == 1 ~ "有",
-        BPQ020 == 2 ~ "无",
+        BPQ020 == "Yes" ~ "有",
+        BPQ020 == "No" ~ "无",
         TRUE ~ NA_character_
       ),
       levels = c("有", "无")
     )
   )
 
-### 各分类变量缺失样本统计
-cat("性别缺失样本数：", sum(is.na(data_clean$sex)),"\n")
-cat("种族缺失样本数：", sum(is.na(data_clean$race)),"\n")
-cat("教育缺失样本数：", sum(is.na(data_clean$education)),"\n")
-cat("吸烟缺失样本数：", sum(is.na(data_clean$smoke)),"\n")
-cat("高血压缺失样本数：", sum(is.na(data_clean$hypertension)),"\n")
-cat("校正尿镉缺失样本数：", sum(is.na(data_clean$URXUCD_cr)),"\n")
-cat("桥本结局缺失样本数：", sum(is.na(data_clean$hashimoto)),"\n")
-### 完全病例法删除全部协变量、暴露、结局缺失样本
-n_before_clean <- nrow(data_clean)
+# 删除缺失值
 data_final <- data_clean %>%
   drop_na(
-    URXUCD_cr, hashimoto, wt_6yr, RIDAGEYR, sex, race,
-    education, smoke, hypertension, BMXBMI, INDFMPIR
+    URXUCD_cr, hashimoto, wt_6yr,
+    RIDAGEYR, sex, race, education, smoke, hypertension,
+    BMXBMI, INDFMPIR          
   )
-n_after_clean <- nrow(data_final)
-cat("清洗前成人样本：", n_before_clean, "最终分析样本：", n_after_clean, "剔除缺失样本：", n_before_clean - n_after_clean,"\n")
-### 绘图分组标签
+
+# 定义分组变量
 data_final <- data_final %>%
-  mutate(hashimoto_grp = factor(hashimoto, levels = 0:1, labels = c("桥本阴性", "桥本阳性")))
-  
-#四、暴露变量可视化分布
-##4.1 尿镉对数分布直方图（按桥本分组）
-ggplot(data_final, aes(x = URXUCD_cr, fill = hashimoto_grp)) +
-  geom_histogram(alpha = 0.6, position = "identity", bins = 35, color = "black") +
-  scale_x_log10() +
-  scale_fill_manual(values = c("#1f77b4", "#d95f02")) +
-  labs(title = "不同桥本患病状态人群肌酐校正尿镉分布",
-       x = "尿镉浓度 (μg/g 肌酐，对数刻度)", y = "原始样本频数", fill = "分组") +
-  theme_bw(base_size = 12) +
-  theme(plot.title = element_text(hjust = 0.5, face = "bold"), legend.position = "bottom")
-  
-##4.2 桥本阳性/阴性组尿镉箱线对比图
-ggplot(data_final, aes(x = hashimoto_grp, y = URXUCD_cr, fill = hashimoto_grp)) +
-  geom_boxplot(alpha = 0.7, width = 0.6, outlier.shape = NA) +
-  geom_jitter(width = 0.2, alpha = 0.15, size = 0.6, color = "gray30") +
-  scale_y_log10() +
-  scale_fill_manual(values = c("#1f77b4", "#d95f02")) +
-  labs(title = "桥本阳性与阴性人群尿镉浓度组间对比",
-       x = NULL, y = "尿镉浓度 (μg/g 肌酐，对数刻度)") +
-  theme_bw(base_size = 12) +
-  theme(plot.title = element_text(hjust = 0.5, face = "bold"), legend.position = "none")
-  
-#五、构建 NHANES 复杂抽样加权设计对象
+  mutate(hashimoto_grp = factor(hashimoto, 
+                                levels = 0:1, 
+                                labels = c("桥本阴性", "桥本阳性")))
+
+# 保存清洗后数据
+writexl::write_xlsx(data_final, "NHANES_2007_2012_urine_cadmium_final_clean.xlsx")
+```
+
+## 5.2 统计分析方法
+
+本研究采用以下统计方法：
+
+1. **加权描述性分析**：连续变量以中位数（P25，P75）描述，分类变量以加权频数（加权百分比）描述；
+2. **组间比较**：根据变量正态性选择加权t检验或加权Wilcoxon秩和检验（连续变量），加权卡方检验（分类变量）；
+3. **多因素Logistic回归**：构建三个模型评估尿镉与桥本甲状腺炎的关联；
+4. **剂量-反应分析**：将尿镉采用加权四分位数划分为 4 个暴露组，以最低四分位数 Q1 为参照计算各组OR及95%CI，并开展线性趋势检验，同时分析组间效应与整体剂量递增趋势；
+5. **亚组分析**：按年龄（<45岁 vs ≥45岁）和性别进行分层分析；
+6. **交互作用检验**：检验年龄和性别对尿镉-桥本关联的交互作用。
+
+所有分析均考虑NHANES复杂抽样设计，使用抽样权重、分层变量和初级抽样单元。
+
+## 5.3 加权设计
+
+```{r svy_design}
+library(survey)
+library(gtsummary)
+library(dplyr)
+library(flextable)
+library(ggplot2)
+library(broom)
+library(tidyr)
+
+# 构建加权设计
 svy_design <- svydesign(
   id = ~SDMVPSU,
   strata = ~SDMVSTRA,
@@ -269,233 +266,436 @@ svy_design <- svydesign(
   data = data_final,
   nest = TRUE
 )
+```
 
-#六、连续变量正态判定与加权组间差异检验
-##6.1 加权偏度、峰度判断分布类型
-cont_ana_vars <- c("URXUCD_cr", "RIDAGEYR", "BMXBMI", "INDFMPIR")
-norm_result <- data.frame(variable = cont_ana_vars, skewness = NA, kurtosis = NA, judge = NA)
-par(mfrow = c(2, length(cont_ana_vars)))
+# 六、研究结果
 
-for(i in seq_along(cont_ana_vars)){
-  v <- cont_ana_vars[i]
-  # 加权直方图
-  svyhist(as.formula(paste0("~",v)), design = svy_design, main = paste0(v, "加权直方图"), col = "steelblue")
-  
-  # 加权正态Q-Q图
-  p_seq <- ppoints(200)
-  quant_w <- svyquantile(as.formula(paste0("~",v)), design = svy_design, quantiles = p_seq, ci=F)
-  plot(qnorm(p_seq), quant_w[[1]], type = "l", lwd=2, col="blue", main=paste0(v, "加权正态Q-Q图"))
-  abline(0,1, col="red", lty=2)
-  
-  # 加权矩计算偏度、超额峰度
-  df_surv <- svy_design$variables
-  w_vec <- weights(svy_design)
-  x_vec <- df_surv[[v]]
-  valid_idx <- !is.na(x_vec) & !is.na(w_vec) & !is.na(df_surv$hashimoto)
-  x_vec <- x_vec[valid_idx]
-  w_vec <- w_vec[valid_idx] / sum(w_vec)
-  
-  mu_w <- sum(w_vec * x_vec)
-  sigma_w <- sqrt(sum(w_vec * (x_vec - mu_w)^2))
-  skew_w <- sum(w_vec * ((x_vec - mu_w)/sigma_w)^3)
-  kurt_w <- sum(w_vec * ((x_vec - mu_w)/sigma_w)^4) - 3
-  
-  norm_result$skewness[i] <- round(skew_w,3)
-  norm_result$kurtosis[i] <- round(kurt_w,3)
-  # 判断标准：|偏度|>1 或 |超额峰度|>2 判定偏态
-  if(abs(skew_w) > 1 | abs(kurt_w) > 2){
-    norm_result$judge[i] <- "偏态分布，采用加权Wilcoxon秩和检验"
-  }else{
-    norm_result$judge[i] <- "近似正态分布，采用加权t检验"
-  }
-}
-par(mfrow = c(1,1))
-print(norm_result)
+## 6.1 正态性检验
 
-##6.2 连续变量加权组间差异检验
-### 尿镉：加权秩和检验
-cd_rank_test <- svyranktest(URXUCD_cr ~ hashimoto, design = svy_design)
-cat("尿镉组间秩和检验 P值：", format(cd_rank_test$p.value, digits=4),"\n")
-print(svyby(~URXUCD_cr, ~hashimoto, svy_design, svyquantile, quantiles=0.5, ci=T))
-### 年龄：加权t检验
-age_t <- svyttest(RIDAGEYR ~ hashimoto, design = svy_design)
-cat("年龄加权t检验 P值：", format(age_t$p.value, digits=4),"\n")
-### BMI：加权秩和检验
-bmi_rank <- svyranktest(BMXBMI ~ hashimoto, design = svy_design)
-cat("BMI加权秩和检验 P值：", format(bmi_rank$p.value, digits=4),"\n")
-### 贫困收入比：加权t检验
-pir_t <- svyttest(INDFMPIR ~ hashimoto, design = svy_design)
-cat("贫困收入比加权t检验 P值：", format(pir_t$p.value, digits=4),"\n")
-
-##6.3 分类变量加权卡方检验
-cat_ana_vars <- c("sex", "race", "education", "smoke", "hypertension")
-chi_list <- lapply(cat_ana_vars, function(var){
-  form <- as.formula(paste("~", var, "+ hashimoto"))
-  chi_res <- svychisq(form, design = svy_design, statistic = "F")
-  data.frame(var_name = var, F_statistic = round(chi_res$statistic,2), P_value = chi_res$p.value)
-})
-chi_all <- bind_rows(chi_list)
-print(chi_all)
-
-#七、三阶段加权 Logistic 回归主分析
-##7.1 尿镉对数转换变量构建
-svy_design$variables$log_URXUCD_cr <- log10(svy_design$variables$URXUCD_cr)
-
-##7.2 粗模型、半调整、完全调整回归模型
-### 模型1：粗模型，仅暴露变量
-model1 <- svyglm(hashimoto ~ log_URXUCD_cr, design = svy_design, family = quasibinomial)
-res1 <- tidy(model1, conf.int = T, exponentiate = T) %>% filter(term == "log_URXUCD_cr")
-### 模型2：调整人口学、社会经济混杂因素
-model2 <- svyglm(hashimoto ~ log_URXUCD_cr + RIDAGEYR + sex + race + education + INDFMPIR,
-                 design = svy_design, family = quasibinomial)
-res2 <- tidy(model2, conf.int = T, exponentiate = T) %>% filter(term == "log_URXUCD_cr")
-### 模型3：完全调整，额外加入BMI、吸烟、高血压
-model3 <- svyglm(hashimoto ~ log_URXUCD_cr + RIDAGEYR + sex + race + education + INDFMPIR + smoke + hypertension + BMXBMI,
-                 design = svy_design, family = quasibinomial)
-res3 <- tidy(model3, conf.int = T, exponentiate = T) %>% filter(term == "log_URXUCD_cr")
-### 合并三模型暴露效应结果
-logistic_summary <- bind_rows(
-  mutate(res1, model_info = "模型1：未调整粗模型"),
-  mutate(res2, model_info = "模型2：调整人口学/社会经济变量"),
-  mutate(res3, model_info = "模型3：全协变量完全调整")
-) %>%
-  select(model_info, estimate, conf.low, conf.high, p.value) %>%
-  rename(OR = estimate, CI_lower = conf.low, CI_upper = conf.high, P = p.value) %>%
-  mutate(across(c(OR, CI_lower, CI_upper), ~round(.,3)), P = round(P,4))
-print(logistic_summary)
-
-#八、尿镉加权四分位数剂量-反应分析
-## 8.1计算尿镉加权四分位数切点
-quant_cut <- svyquantile(~URXUCD_cr, design = svy_design, quantiles = c(0,0.25,0.5,0.75,1), na.rm=T)
-cut_val <- as.numeric(quant_cut$URXUCD_cr[,1])
-cat("尿镉加权四分位数切点值：", cut_val,"\n")
-
-## 8.2四分位数分组变量
-svy_design$variables$urine_q <- cut(
-  svy_design$variables$URXUCD_cr,
-  breaks = cut_val, include.lowest = T, labels = c("Q1","Q2","Q3","Q4")
+```{r normality_test}
+cont_vars <- c("URXUCD_cr", "RIDAGEYR", "BMXBMI", "INDFMPIR")
+norm_decision <- data.frame(
+  variable = cont_vars,
+  skewness = NA,
+  kurtosis = NA,
+  decision = NA
 )
 
-## 8.3四分位数多分类回归模型
-form_q <- as.formula(hashimoto ~ urine_q + RIDAGEYR + sex + race + education + INDFMPIR + smoke + hypertension + BMXBMI)
-fit_q <- svyglm(form_q, design = svy_design, family = quasibinomial)
-q_res <- tidy(fit_q, conf.int = T, exponentiate = T) %>% filter(grepl("urine_q", term))
-print(q_res)
+for (i in seq_along(cont_vars)) {
+  v <- cont_vars[i]
+  dat <- svy_design$variables
+  w <- weights(svy_design)
+  x <- dat[[v]]
+  valid <- !is.na(x) & !is.na(w) & !is.na(dat$hashimoto)
+  x <- x[valid]
+  w <- w[valid]
+  w <- w / sum(w)
+  mu <- sum(w * x)
+  sigma <- sqrt(sum(w * (x - mu)^2))
+  skew <- sum(w * ((x - mu) / sigma)^3)
+  kurt <- sum(w * ((x - mu) / sigma)^4) - 3
+  norm_decision$skewness[i] <- round(skew, 3)
+  norm_decision$kurtosis[i] <- round(kurt, 3)
+  if (abs(skew) > 1 || abs(kurt) > 2) {
+    norm_decision$decision[i] <- "偏态 → 加权秩和检验"
+  } else {
+    norm_decision$decision[i] <- "近似正态 → 加权t检验"
+  }
+}
 
-## 8.4线性趋势检验（四分位等级作为连续变量）
+knitr::kable(norm_decision, caption = "表1. 连续变量正态性检验结果")
+```
+
+## 6.2 组间比较
+
+```{r group_comparison}
+# 尿镉组间比较（加权秩和检验）
+urine_test <- svyranktest(URXUCD_cr ~ hashimoto, design = svy_design)
+
+# 分类变量组间比较（加权卡方检验）
+cat_vars <- c("sex", "race", "education", "smoke", "hypertension")
+chisq_results <- lapply(cat_vars, function(var) {
+  formula <- as.formula(paste("~", var, "+ hashimoto"))
+  test <- svychisq(formula, design = svy_design, statistic = "F")
+  data.frame(
+    variable = var,
+    p_value = test$p.value,
+    statistic = round(test$statistic, 2)
+  )
+})
+chisq_table <- bind_rows(chisq_results)
+
+# 连续变量组间比较
+age_test <- svyttest(RIDAGEYR ~ hashimoto, design = svy_design)
+bmi_test <- svyranktest(BMXBMI ~ hashimoto, design = svy_design)
+pir_test <- svyttest(INDFMPIR ~ hashimoto, design = svy_design)
+
+# 提取P值
+age_p <- age_test$p.value
+bmi_p <- bmi_test$p.value
+pir_p <- pir_test$p.value
+cad_p <- urine_test$p.value
+
+cat("尿镉 P值:", format(cad_p, scientific = FALSE, digits = 4), "\n")
+cat("年龄 P值:", format(age_p, scientific = FALSE, digits = 4), "\n")
+cat("BMI P值:", format(bmi_p, scientific = FALSE, digits = 4), "\n")
+cat("贫困收入比 P值:", format(pir_p, scientific = FALSE, digits = 4), "\n")
+```
+
+## 6.3 加权基线特征
+
+### 表2. 研究人群加权基线特征及组间比较
+
+```{r table1}
+# 创建基础表格
+tbl_base <- tbl_svysummary(
+  svy_design,
+  by = hashimoto_grp,
+  include = c(RIDAGEYR, BMXBMI, INDFMPIR, URXUCD_cr,
+              sex, race, education, smoke, hypertension),
+  statistic = list(
+    all_continuous() ~ "{median} ({p25}, {p75})",
+    all_categorical() ~ "{n} ({p}%)"
+  ),
+  digits = list(all_continuous() ~ 1, all_categorical() ~ c(0, 1)),
+  label = list(
+    RIDAGEYR ~ "年龄 (岁)",
+    BMXBMI ~ "身体质量指数 (kg/m²)",
+    INDFMPIR ~ "贫困收入比",
+    URXUCD_cr ~ "尿镉 (μg/g 肌酐)",
+    sex ~ "性别",
+    race ~ "种族",
+    education ~ "教育程度",
+    smoke ~ "吸烟状况",
+    hypertension ~ "高血压"
+  )
+) %>%
+  modify_header(all_stat_cols() ~ "**{level} (加权 n = {n})**") %>%
+  bold_labels()
+
+# ========== 定义P值数据框 ==========
+p_df <- data.frame(
+  variable = c("RIDAGEYR", "BMXBMI", "INDFMPIR", "URXUCD_cr",
+               "sex", "race", "education", "smoke", "hypertension"),
+  p_val = c(age_p, bmi_p, pir_p, cad_p,
+            chisq_table$p_value[chisq_table$variable == "sex"],
+            chisq_table$p_value[chisq_table$variable == "race"],
+            chisq_table$p_value[chisq_table$variable == "education"],
+            chisq_table$p_value[chisq_table$variable == "smoke"],
+            chisq_table$p_value[chisq_table$variable == "hypertension"])
+)
+
+# 添加P值（直接生成最终表2）
+tbl_final <- tbl_base %>%
+  modify_table_body(
+    ~ .x %>%
+      mutate(p.value = p_df$p_val[match(variable, p_df$variable)]) %>%
+      group_by(variable) %>%
+      mutate(p.value = ifelse(row_number() == 1, p.value, NA)) %>%
+      ungroup()
+  ) %>%
+  modify_fmt_fun(
+    p.value ~ function(x) {
+      ifelse(is.na(x), "", 
+             ifelse(x < 0.0001, "<0.0001", 
+                    sprintf("%.4f", round(x, 4))))
+    }
+  ) %>%
+  modify_header(p.value ~ "**P值**") %>%
+  modify_caption("表2. 研究人群加权基线特征及组间比较") %>%
+  bold_labels()
+
+tbl_final
+```
+
+## 6.4 可视化分析
+
+```{r figures, fig.width=8, fig.height=5}
+# 图1：尿镉分布直方图
+p1 <- ggplot(data_final, aes(x = URXUCD_cr, fill = hashimoto_grp)) +
+  geom_histogram(alpha = 0.6, position = "identity", bins = 35, color = "black") +
+  scale_x_log10() +
+  scale_fill_manual(values = c("#1f77b4", "#d95f02")) +
+  labs(title = "图1. 尿镉浓度在不同桥本状态下的分布",
+       x = "尿镉浓度 (μg/g 肌酐, 对数转换)",
+       y = "频数", fill = "组别") +
+  theme_bw(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        legend.position = "bottom", legend.title = element_blank())
+p1
+
+# 图2：尿镉组间箱线图
+set.seed(123)
+p2 <- ggplot(data_final, aes(x = hashimoto_grp, y = URXUCD_cr, fill = hashimoto_grp)) +
+  geom_boxplot(alpha = 0.7, width = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.15, size = 0.6, color = "gray30") +
+  scale_y_log10() +
+  scale_fill_manual(values = c("#1f77b4", "#d95f02")) +
+  labs(title = "图2. 桥本阳性与阴性组尿镉浓度比较",
+       x = NULL, y = "尿镉浓度 (μg/g 肌酐, 对数转换)") +
+  theme_bw(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        legend.position = "none", axis.text.x = element_text(size = 11))
+p2
+```
+
+## 6.5 多因素Logistic回归
+
+```{r logistic_regression}
+# 新增log10转换后的尿镉变量
+svy_design$variables$log_URXUCD_cr <- log10(svy_design$variables$URXUCD_cr)
+
+# 模型1：粗模型
+m1 <- svyglm(hashimoto ~ log_URXUCD_cr, 
+             design = svy_design, 
+             family = quasibinomial)
+
+# 模型2：调整人口学+社会经济
+m2 <- svyglm(hashimoto ~ log_URXUCD_cr + RIDAGEYR + sex + race + education + INDFMPIR, 
+             design = svy_design, 
+             family = quasibinomial)
+
+# 模型3：完全调整
+m3 <- svyglm(hashimoto ~ log_URXUCD_cr + RIDAGEYR + sex + race + education + INDFMPIR + 
+               smoke + hypertension + BMXBMI, 
+             design = svy_design, 
+             family = quasibinomial)
+
+# 提取结果
+tidy_m1 <- tidy(m1, conf.int = TRUE, exponentiate = TRUE) %>% filter(term == "log_URXUCD_cr")
+tidy_m2 <- tidy(m2, conf.int = TRUE, exponentiate = TRUE) %>% filter(term == "log_URXUCD_cr")
+tidy_m3 <- tidy(m3, conf.int = TRUE, exponentiate = TRUE) %>% filter(term == "log_URXUCD_cr")
+
+logistic_results <- bind_rows(
+  mutate(tidy_m1, Model = "模型1 (粗模型)"),
+  mutate(tidy_m2, Model = "模型2 (+人口学+社会经济)"),
+  mutate(tidy_m3, Model = "模型3 (+生活方式/慢性病)")
+) %>%
+  select(Model, estimate, conf.low, conf.high, p.value) %>%
+  rename(OR = estimate, CI_lower = conf.low, CI_upper = conf.high, P_value = p.value) %>%
+  mutate(across(c(OR, CI_lower, CI_upper), ~ round(., 3)),
+         P_value = round(P_value, 4))
+
+knitr::kable(logistic_results, caption = "表3.尿镉与桥本甲状腺炎的多因素Logistic回归")
+```
+
+## 6.6 剂量-反应分析
+
+```{r dose_response}
+# 加权四分位数分组
+quant_obj <- svyquantile(~URXUCD_cr, design = svy_design, 
+                         quantiles = c(0, 0.25, 0.5, 0.75, 1), 
+                         na.rm = TRUE)
+quantiles <- as.numeric(quant_obj$URXUCD_cr[,1])
+
+svy_design$variables$urine_q <- cut(
+  svy_design$variables$URXUCD_cr,
+  breaks = quantiles,
+  include.lowest = TRUE,
+  labels = c("Q1", "Q2", "Q3", "Q4")
+)
+
+# 四分位数模型
+formula_q <- as.formula(
+  hashimoto ~ urine_q + RIDAGEYR + sex + race + education + 
+    INDFMPIR + smoke + hypertension + BMXBMI
+)
+fit_q <- svyglm(formula_q, design = svy_design, family = quasibinomial)
+tidy_q <- tidy(fit_q, conf.int = TRUE, exponentiate = TRUE) %>%
+  filter(grepl("urine_q", term))
+
+# 线性趋势检验
 svy_design$variables$urine_q_num <- as.numeric(svy_design$variables$urine_q)
-form_trend <- update(form_q, . ~ . - urine_q + urine_q_num)
-fit_trend <- svyglm(form_trend, design = svy_design, family = quasibinomial)
-trend_res <- tidy(fit_trend, conf.int = T, exponentiate = T) %>% filter(term == "urine_q_num")
-cat("四分位等级线性趋势OR、95%CI与P值：\n")
-print(trend_res)
+formula_trend <- update(formula_q, . ~ . - urine_q + urine_q_num)
+fit_trend <- svyglm(formula_trend, design = svy_design, family = quasibinomial)
+tidy_trend <- tidy(fit_trend, conf.int = TRUE, exponentiate = TRUE) %>%
+  filter(term == "urine_q_num")
 
-#九、性别、年龄分层亚组补充分析+交互作用
-##9.1 构建年龄分层、动态建模函数
-### 年龄分层变量：45岁切点
-svy_design$variables$age_group <- factor(ifelse(svy_design$variables$RIDAGEYR <45, "<45岁", "≥45岁"), levels = c("<45岁", "≥45岁"))
-### 自动剔除亚组内单水平协变量的公式构建函数
-build_sub_form <- function(sub_ds){
-  base_exp <- "urine_q_num"
-  cov_cand <- c("RIDAGEYR", "race", "education", "INDFMPIR", "smoke", "hypertension", "BMXBMI")
-  keep_vars <- base_exp
-  for(v in cov_cand){
-    if(v %in% names(sub_ds$variables)){
+# 汇总表
+q_results <- tidy_q %>%
+  mutate(
+    OR_CI = paste0(round(estimate, 2), " (", round(conf.low, 2), "-", round(conf.high, 2), ")"),
+    P = round(p.value, 4),
+    Exposure = case_when(
+      term == "urine_qQ2" ~ "Q2",
+      term == "urine_qQ3" ~ "Q3",
+      term == "urine_qQ4" ~ "Q4",
+      TRUE ~ term
+    )
+  ) %>%
+  select(Exposure, OR_CI, P)
+
+trend_line <- data.frame(
+  Exposure = "线性趋势（每升高1个四分位等级）",
+  OR_CI = paste0(
+    round(tidy_trend$estimate, 2), " (",
+    round(tidy_trend$conf.low, 2), "-",
+    round(tidy_trend$conf.high, 2), ")"
+  ),
+  P = round(tidy_trend$p.value, 4)
+)
+
+dose_response_table <- bind_rows(q_results, trend_line)
+knitr::kable(dose_response_table, caption = "表4.尿镉与桥本甲状腺炎的剂量-反应分析")
+```
+*注：Q1为参照组；趋势检验将四分位等级（1、2、3、4）作为连续变量纳入模型。*
+
+## 6.7 亚组分析
+
+```{r subgroup_analysis}
+# 创建年龄分组
+svy_design$variables$age_group <- ifelse(svy_design$variables$RIDAGEYR < 45, "<45岁", "≥45岁")
+svy_design$variables$age_group <- factor(svy_design$variables$age_group, 
+                                         levels = c("<45岁", "≥45岁"))
+
+# 构建公式函数
+build_formula <- function(sub_ds) {
+  base_vars <- c("urine_q_num")
+  candidates <- c("RIDAGEYR", "sex", "race", "education", "INDFMPIR", "smoke", "hypertension", "BMXBMI")
+  keep_vars <- base_vars
+  for (v in candidates) {
+    if (v %in% names(sub_ds$variables)) {
       val <- sub_ds$variables[[v]]
-      if(is.numeric(val)) keep_vars <- c(keep_vars, v)
-      if(is.factor(val) | is.character(val)){
-        if(length(unique(na.omit(val)))>1) keep_vars <- c(keep_vars, v)
+      if (is.factor(val) || is.character(val)) {
+        if (length(unique(na.omit(val))) > 1) {
+          keep_vars <- c(keep_vars, v)
+        }
+      } else {
+        keep_vars <- c(keep_vars, v)
       }
     }
   }
-  as.formula(paste("hashimoto ~", paste(keep_vars, collapse = " + ")))
+  formula_str <- paste("hashimoto ~", paste(keep_vars, collapse = " + "))
+  return(as.formula(formula_str))
 }
 
-##9.2 年龄分层回归分析
-age_sub_res <- list()
-for(g in levels(svy_design$variables$age_group)){
-  sub_data <- subset(svy_design, age_group == g)
-  sub_data <- subset(sub_data, !is.na(hashimoto) & !is.na(RIDAGEYR) & !is.na(race) & !is.na(education) & !is.na(INDFMPIR) & !is.na(smoke) & !is.na(hypertension) & !is.na(BMXBMI))
-  sub_form <- build_sub_form(sub_data)
-  fit_sub <- tryCatch(svyglm(sub_form, design = sub_data, family = quasibinomial), error = function(e) NULL)
-  if(is.null(fit_sub)) next
-  sub_out <- tidy(fit_sub, conf.int = T, exponentiate = T) %>% filter(term == "urine_q_num") %>% mutate(subgroup = paste0("年龄：",g))
-  age_sub_res[[g]] <- sub_out
+# 年龄分层
+age_levels <- levels(svy_design$variables$age_group)
+age_list_cont <- list()
+for (g in age_levels) {
+  sub_ds <- subset(svy_design, age_group == g)
+  sub_ds <- subset(sub_ds,
+                   !is.na(hashimoto) & !is.na(RIDAGEYR) & !is.na(race) & !is.na(education) &
+                     !is.na(INDFMPIR) & !is.na(smoke) & !is.na(hypertension) & !is.na(BMXBMI))
+  formula_cont <- build_formula(sub_ds)
+  fit <- tryCatch(
+    svyglm(formula_cont, design = sub_ds, family = quasibinomial),
+    error = function(e) { return(NULL) }
+  )
+  if (is.null(fit)) next
+  tidy_fit <- tidy(fit, conf.int = TRUE, exponentiate = TRUE) %>%
+    filter(term == "urine_q_num") %>%
+    mutate(Subgroup = paste0("年龄：", g))
+  age_list_cont[[g]] <- tidy_fit
 }
-age_df <- bind_rows(age_sub_res)
-print(age_df)
+age_df_cont <- bind_rows(age_list_cont)
 
-##9.3 性别分层回归分析
-sex_sub_res <- list()
-for(g in levels(svy_design$variables$sex)){
-  sub_data <- subset(svy_design, sex == g)
-  sub_data <- subset(sub_data, !is.na(hashimoto) & !is.na(RIDAGEYR) & !is.na(race) & !is.na(education) & !is.na(INDFMPIR) & !is.na(smoke) & !is.na(hypertension) & !is.na(BMXBMI))
-  if(nrow(sub_data) <30) next
-  sub_form <- build_sub_form(sub_data)
-  fit_sub <- tryCatch(svyglm(sub_form, design = sub_data, family = quasibinomial), error = function(e) NULL)
-  if(is.null(fit_sub)) next
-  sub_out <- tidy(fit_sub, conf.int = T, exponentiate = T) %>% filter(term == "urine_q_num") %>% mutate(subgroup = paste0("性别：",g))
-  sex_sub_res[[g]] <- sub_out
+# 性别分层
+sex_levels <- levels(svy_design$variables$sex)
+sex_list <- list()
+for (g in sex_levels) {
+  sub_ds <- subset(svy_design, sex == g)
+  sub_ds <- subset(sub_ds,
+                   !is.na(hashimoto) & !is.na(RIDAGEYR) & !is.na(race) & !is.na(education) &
+                     !is.na(INDFMPIR) & !is.na(smoke) & !is.na(hypertension) & !is.na(BMXBMI))
+  if (nrow(sub_ds) < 30) next
+  cox_vars <- c("RIDAGEYR", "race", "education", "INDFMPIR", "smoke", "hypertension", "BMXBMI")
+  keep_vars <- "urine_q_num"
+  for (v in cox_vars) {
+    if (v %in% names(sub_ds$variables)) {
+      val <- sub_ds$variables[[v]]
+      if (is.numeric(val) || is.integer(val)) {
+        keep_vars <- c(keep_vars, v)
+      } else if (is.factor(val) || is.character(val)) {
+        if (length(unique(na.omit(val))) > 1) {
+          keep_vars <- c(keep_vars, v)
+        }
+      }
+    }
+  }
+  formula_str <- paste("hashimoto ~", paste(keep_vars, collapse = " + "))
+  formula_sub <- as.formula(formula_str)
+  fit <- tryCatch(
+    svyglm(formula_sub, design = sub_ds, family = quasibinomial),
+    error = function(e) { return(NULL) }
+  )
+  if (is.null(fit)) next
+  tidy_fit <- tidy(fit, conf.int = TRUE, exponentiate = TRUE) %>%
+    filter(term == "urine_q_num") %>%
+    mutate(Subgroup = paste0("性别：", g))
+  sex_list[[g]] <- tidy_fit
 }
-sex_df <- bind_rows(sex_sub_res)
-print(sex_df)
+sex_df <- bind_rows(sex_list)
 
-## 9.4整合全部亚组结果
-all_sub_res <- bind_rows(sex_df, age_df) %>%
-  mutate(OR = round(estimate,2), CI_low = round(conf.low,2), CI_high = round(conf.high,2), P = round(p.value,4)) %>%
-  select(subgroup, OR, CI_low, CI_high, P)
-print(all_sub_res)
+# 合并亚组结果
+subgroup_results <- bind_rows(
+  sex_df %>% mutate(Subgroup = as.character(Subgroup)),
+  age_df_cont %>% mutate(Subgroup = as.character(Subgroup))
+) %>% 
+  mutate(
+    OR_CI = paste0(round(estimate, 2), " (", round(conf.low, 2), "-", round(conf.high, 2), ")"),
+    P = round(p.value, 4)
+  ) %>% 
+  select(Subgroup, OR_CI, P)
 
-## 9.5交互作用检验
-### 创建交互变量 
+knitr::kable(subgroup_results, caption = "表5. 亚组分层分析结果")
+```
+
+## 6.8 交互作用检验
+
+```{r interaction_test}
+library(stringr)
+
 svy_design_inter <- update(svy_design,
-  age_group_num = ifelse(age_group == "≥45岁", 1, 0),
-  sex_num = ifelse(sex == "女", 1, 0)
-)
-###年龄 × 尿镉交互模型
+                           age_group_num = ifelse(age_group == "≥45岁", 1, 0),
+                           sex_num = ifelse(sex == "女", 1, 0))
+
+# 年龄交互
 interaction_age <- svyglm(
-  hashimoto ~ urine_q_num * age_group_num + 
+  hashimoto ~ urine_q_num * age_group_num +     
     sex + race + education + INDFMPIR + smoke + hypertension + BMXBMI,
   design = svy_design_inter,
   family = quasibinomial
 )
-
 tidy_age_interaction <- tidy(interaction_age, conf.int = TRUE, exponentiate = TRUE)
-age_inter_p_df <- tidy_age_interaction %>%
-  filter(str_detect(term, "urine_q_num:age_group_num"))
-if(nrow(age_inter_p_df) == 0) stop("未匹配到年龄交互项！")
-age_interaction_p <- pull(age_inter_p_df, p.value)
-###性别 × 尿镉交互模型
+age_inter_p <- tidy_age_interaction %>%
+  filter(str_detect(term, "urine_q_num:age_group_num")) %>%
+  pull(p.value)
+
+# 性别交互
 interaction_sex <- svyglm(
-  hashimoto ~ urine_q_num * sex_num + 
+  hashimoto ~ urine_q_num * sex_num +           
     RIDAGEYR + race + education + INDFMPIR + smoke + hypertension + BMXBMI,
   design = svy_design_inter,
   family = quasibinomial
 )
-
 tidy_sex_interaction <- tidy(interaction_sex, conf.int = TRUE, exponentiate = TRUE)
-sex_inter_p_df <- tidy_sex_interaction %>%
-  filter(str_detect(term, "urine_q_num:sex_num"))
-if(nrow(sex_inter_p_df) == 0) stop("未匹配到性别交互项！")
-sex_interaction_p <- pull(sex_inter_p_df, p.value)
-### P值格式化函数
+sex_inter_p <- tidy_sex_interaction %>%
+  filter(str_detect(term, "urine_q_num:sex_num")) %>%
+  pull(p.value)
+
 format_p <- function(p) {
   if (is.na(p)) return("NA")
   if (p < 0.001) return("<0.001")
   if (p < 0.01) return(sprintf("%.3f", p))
   return(sprintf("%.4f", p))
 }
-### 输出交互P值 
-cat("\n===== 交互作用 P 值 =====\n")
-cat("年龄 × 尿镉: P =", format_p(age_interaction_p), "\n")
-cat("性别 × 尿镉: P =", format_p(sex_interaction_p), "\n")
 
-#十、亚组效应可视化：森林图
-## 10.1 合并亚组结果并准备绘图数据
-all_sub_res <- bind_rows(sex_df, age_df)
+interaction_results <- data.frame(
+  Interaction = c("年龄 × 尿镉", "性别 × 尿镉"),
+  P_value = c(format_p(age_inter_p), format_p(sex_inter_p))
+)
+knitr::kable(interaction_results, caption = "表6. 交互作用检验结果")
+```
+
+## 6.9 亚组森林图
+
+```{r forest_plot, fig.width=10, fig.height=5}
+all_sub_res <- bind_rows(sex_df, age_df_cont)
+
 forest_input <- all_sub_res %>%
   rename(
-    Subgroup = subgroup,
+    Subgroup = Subgroup,
     OR = estimate,
     CI_low = conf.low,
     CI_high = conf.high
@@ -503,8 +703,8 @@ forest_input <- all_sub_res %>%
   mutate(
     Group = ifelse(str_detect(Subgroup, "性别"), "性别", "年龄"),
     Subgroup = case_when(
-      Subgroup == "年龄：≥45岁" ~ "年龄：≥45岁",
-      Subgroup == "年龄：<45岁" ~ "年龄：<45岁",
+      Subgroup == "≥45岁" ~ "年龄：≥45岁",
+      Subgroup == "<45岁" ~ "年龄：<45岁",
       TRUE ~ Subgroup
     ),
     Subgroup = factor(Subgroup,
@@ -521,13 +721,10 @@ forest_input <- all_sub_res %>%
     )
   )
 
-## 10.2 绘制森林图
-p <- ggplot(forest_input, aes(x = OR, y = Subgroup, color = Group)) +
+p_forest <- ggplot(forest_input, aes(x = OR, y = Subgroup, color = Group)) +
   geom_vline(xintercept = 1, linetype = "dashed", color = "gray40", linewidth = 1) +
   geom_errorbar(aes(xmin = CI_low, xmax = CI_high), 
-                width = 0.2, 
-                orientation = "y",
-                linewidth = 1.2) +
+                width = 0.2, orientation = "y", linewidth = 1.2) +
   geom_point(size = 4) +
   geom_text(aes(label = label_text, x = CI_high), 
             hjust = -0.3, size = 4, show.legend = FALSE) +
@@ -536,14 +733,14 @@ p <- ggplot(forest_input, aes(x = OR, y = Subgroup, color = Group)) +
                 limits = c(0.2, 5.5)) +
   scale_color_manual(values = c("steelblue", "#e63946")) +
   labs(
-    title = "尿镉与桥本甲状腺炎风险的亚组分析",
+    title = "图3. 尿镉与桥本甲状腺炎风险的亚组分析森林图",
     subtitle = "分层维度：性别、年龄（45岁切点）",
     x = "比值比 OR (95% 置信区间)", 
     y = NULL,
     color = "亚组类型",
     caption = paste0(
-      "交互作用 P 值：年龄×尿镉 = ", format_p(age_interaction_p),
-      "；性别×尿镉 = ", format_p(sex_interaction_p)
+      "交互作用 P 值：年龄×尿镉 = ", format_p(age_inter_p),
+      "；性别×尿镉 = ", format_p(sex_inter_p)
     )
   ) +
   theme_bw(base_size = 14) +
@@ -551,27 +748,69 @@ p <- ggplot(forest_input, aes(x = OR, y = Subgroup, color = Group)) +
     panel.grid.major.y = element_blank(),
     plot.title = element_text(hjust = 0.5),
     plot.subtitle = element_text(hjust = 0.5),
-    plot.caption = element_text(hjust = 0.5, size = 10, face = "italic"),  # 脚注样式
+    plot.caption = element_text(hjust = 0.5, size = 10, face = "italic"),
     legend.position = "bottom",
     axis.text.y = element_text(size = 13),
-    plot.margin = margin(10, 50, 20, 10) 
+    plot.margin = margin(10, 50, 20, 10)  
   )
+p_forest
+```
 
-print(p)
+# 七、讨论
 
-#十一、讨论
-##11.1 主要发现
-本研究基于 NHANES 2007-2012 年全国代表性数据，纳入 4642 例 20 岁及以上成人，采用复杂抽样加权设计，系统评估了尿镉暴露与桥本甲状腺炎患病风险的关联。
+## 7.1 主要发现
 
-主要发现如下：（1）完全调整模型中，尿镉每升高一个对数单位，桥本甲状腺炎风险增加 53.8%（OR=1.538，95%CI: 1.050-2.253，P=0.0280）；（2）剂量-反应分析显示，尿镉加权四分位数与桥本风险呈显著线性趋势（P for trend=0.0175）；（3）亚组分析提示该关联在女性中尤为显著（OR=1.32，95%CI: 1.11-1.57，P<0.001），在≥45岁人群中呈临界显著（OR=1.15，95%CI: 0.99-1.34，P=0.0637）；（4）交互作用检验显示，性别×尿镉交互项显著（P=0.008），年龄×尿镉交互项不显著（P=0.356）。
+本研究基于NHANES 2007-2012年数据，探讨了尿镉水平与桥本甲状腺炎之间的关联。主要发现如下：
 
-##11.2 与既往研究的比较
-本研究发现尿镉与桥本甲状腺炎的正向关联与既往文献方向一致。性别亚组分析显示女性中关联尤为显著（OR=1.32），且交互作用检验证实性别是显著的效应修饰因子（P=0.008），这与既往研究中镉作为"金属雌激素"的假设相吻合，也从统计学角度支持了HT好发于女性的流行病学特征。
+1. **基线特征**：桥本阳性组与阴性组相比，年龄更大、尿镉水平更高、女性比例更高（均P<0.001）；两组在教育程度（P=0.044）和贫困收入比（P=0.010）方面也有显著差异；BMI、吸烟状况和高血压在两组间无显著差异（P>0.05）。
 
-在年龄亚组中，本研究仅观察到≥45岁人群的临界显著关联（P=0.0637），而部分既往研究报道为显著（P<0.05）。这一差异可能主要源于协变量调整方案的不同：本研究的完全调整模型额外纳入了高血压作为协变量。镉暴露本身可通过肾小管损伤及血管内皮功能障碍升高血压，高血压亦与自身免疫紊乱存在关联。因此，本研究采用的更保守的多因素调整策略可能部分削弱了尿镉在老年人群中的表观效应强度。此外，年龄×尿镉交互项未达到统计学显著性（P=0.356），提示虽然≥45岁人群中效应有增强趋势，但年龄对尿镉与HT关联的修饰效应尚缺乏充分的统计学证据。尽管如此，该亚组效应方向与主分析保持一致，且置信区间紧贴1的上界，提示该关联趋势稳定，而非真正的零效应。≥45岁人群经加权后有效样本量相对减少，也可能对统计效力产生一定影响。
+2. **多因素分析**：经完全校正模型显示，**log₁₀转换后的校正尿镉每上升1个单位**，桥本甲状腺炎患病风险升高 **53.8%**（OR=1.538，95%CI：1.050-2.253）。
 
-##11.3 局限性
-本研究存在以下局限性。第一，由于 NHANES 为横断面调查，无法确定尿镉暴露与桥本甲状腺炎之间的因果关系。第二，尿镉仅基于单次晨尿检测，可能难以完全反映个体长期的慢性镉暴露水平，尽管既往研究已证实单次尿镉测量在人群层面具有较好的可靠性。第三，尽管本研究已调整了主要的人口学、生活方式及慢性病史等协变量，但无法完全排除其他潜在混杂因素（如职业暴露史、膳食硒摄入等）的影响。
+3. **剂量-反应关系**：尿镉水平与桥本甲状腺炎风险呈显著线性趋势（P for trend < 0.05）。
 
-##11.4 结论
-本研究表明，尿镉暴露与桥本甲状腺炎风险呈显著正相关，并存在剂量-反应趋势。该关联在女性中尤为明显，在≥45岁人群中呈现边缘显著的关联趋势。未来需要开展前瞻性队列研究进一步验证因果关系，并探索其潜在的生物学机制。
+4. **亚组分析**：
+
+   - **性别**：女性群体中尿镉与HT的关联显著（OR=1.32，95%CI: 1.11-1.57，P=0.002），男性群体中未观察到显著关联（OR=0.94，95%CI: 0.76-1.17，P=0.564）。
+   
+   - **年龄**：≥45岁组呈边缘显著（OR=1.15，95%CI: 0.99-1.34，P=0.064），<45岁组未观察到显著关联（OR=1.09，95%CI: 0.90-1.31，P=0.362）。
+   
+5. **交互作用**：性别×尿镉交互作用显著（P=0.008），提示性别是尿镉与HT关联的效应修饰因子；年龄×尿镉交互作用不显著（P=0.356），未发现年龄具有明确的效应修饰作用。
+
+## 7.2 与既往研究比较
+
+本研究结果与既往关于尿镉与桥本甲状腺炎关联的研究基本一致，但在年龄分层效应上存在一定差异。
+
+### 与既往研究一致之处
+
+**性别差异方面**，李梦然等（2024）首次报告女性群体对镉暴露更为敏感（OR=1.374）。本研究亚组分析同样发现，女性群体中尿镉与HT的关联显著（OR=1.32, 95%CI: 1.11-1.57, P=0.002），而男性群体中未观察到显著关联（OR=0.94, 95%CI: 0.76-1.17, P=0.564），与李梦然等的研究结论高度一致，进一步验证了雌激素可能介导镉的甲状腺损伤效应。
+
+**剂量-反应关系方面**，闫少帅等（2023）首次在大规模人群中发现尿镉每上升一个IQR，HT风险增加13.4%（OR=1.134,95%CI:1.009-1.274）。李梦然等（2024）进一步验证了该关联（OR=1.237, 95%CI:1.083-1.414）。本研究观察到log₁₀转换后的校正尿镉每上升1个单位，HT风险增加53.8%（OR=1.538,95%CI:1.050-2.253），方向与既往研究一致，进一步证实了镉暴露与HT之间存在剂量-反应关系。
+
+### 与既往研究的差异
+
+值得注意的是，闫少帅等（2023）在四分位数分析中观察到，与最低暴露组（Q1）相比，最高暴露组（Q4）的HT风险显著升高（OR=1.56,95%CI:1.039-2.347），而本研究中Q4组仅呈边缘显著（OR=1.47,95%CI:0.99-2.20,P=0.058）。李梦然等（2024）同样观察到Q4组不显著（OR=0.947, P=0.872）。但三篇研究的**线性趋势检验均达到显著水平**（闫少帅等P trend=0.032，李梦然等P trend=0.014，本研究P trend=0.0175），提示尿镉与HT之间存在稳定的剂量-反应关系。
+
+本研究中Q4组未达到显著性阈值，可能原因包括：其一，各研究在协变量选择上存在差异，闫少帅等未纳入BMI和高血压等协变量，可能影响效应估计；其二，Q4组与Q1组的两两比较统计效能相对较低，而趋势检验利用了所有分组的排序信息，具有更高的检验效能；其三，本研究Q4组OR下限为0.99，接近显著性阈值（P=0.058），属于边缘显著情况。
+
+### 年龄效应的特殊发现
+
+本研究在年龄分层分析中发现，≥45岁组尿镉与HT的关联呈边缘显著（OR=1.15, 95%CI: 0.99-1.34, P=0.064），而<45岁组未观察到显著关联（OR=1.09, 95%CI: 0.90-1.31, P=0.362）。进一步交互作用检验显示，年龄×尿镉的交互项P值为0.356，未达到统计学显著水平。这一结果提示：本研究中未发现年龄对尿镉与HT关联具有明确的效应修饰作用。年龄在其中的作用尚需进一步研究验证。
+
+## 7.3 研究局限性
+
+本研究存在以下局限性：
+
+1. **研究设计层面**：本研究为横断面研究，无法确立尿镉与桥本甲状腺炎之间的因果关系，未来需要前瞻性队列研究进一步验证。
+
+2. **暴露测量层面**：采用单次尿镉测量代表个体暴露水平，可能无法准确反映长期镉暴露状态。镉在体内的生物半衰期长达15-30年，单次测量存在暴露分类偏倚的可能。
+
+3. **混杂因素层面**：尽管本研究校正了年龄、性别、种族、教育、吸烟、高血压、BMI等多个混杂因素，但残余混杂（如其他环境污染物暴露、遗传易感性、碘摄入量等）仍可能存在。
+
+4. **数据限制**：NHANES数据库缺乏甲状腺超声、甲状腺体积等临床信息，无法进一步评估甲状腺形态学改变与镉暴露的关系。
+
+5. **外推性**：研究对象为美国成年人群，研究结论向其他种族、地区或特殊人群（如儿童、孕妇）的外推需谨慎。
+
+# 八、结论
+
+尿镉水平升高与桥本甲状腺炎风险增加显著相关，且存在剂量-反应关系。该关联在女性中更为明显。减少环境镉暴露可能有助于降低桥本甲状腺炎的发病风险。
+

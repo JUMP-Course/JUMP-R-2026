@@ -112,39 +112,12 @@ rank_cont_table <- data.frame(
 )
 print(rank_cont_table)
 
-# ==========3.加权基线特征表==========
+# ========== 3. 加权基线特征表（添加P值） ==========
 # 提取原始P值
 age_p   <- age_test$p.value
 bmi_p   <- bmi_test$p.value
 pir_p   <- pir_test$p.value
 cad_p   <- urine_test$p.value
-
-# 构建基础基线表
-tbl_base <- tbl_svysummary(
-  svy_design,
-  by = hashimoto,
-  include = c(RIDAGEYR, BMXBMI, INDFMPIR, URXUCD_cr,
-              sex, race, education, smoke, hypertension),
-  statistic = list(
-    all_continuous() ~ "{median} ({p25}, {p75})",
-    all_categorical() ~ "{n} ({p}%)"
-  ),
-  digits = list(all_continuous() ~ 1, all_categorical() ~ c(0, 1)),
-  label = list(
-    RIDAGEYR ~ "年龄 (岁)",
-    BMXBMI ~ "身体质量指数 (kg/m²)",
-    INDFMPIR ~ "贫困收入比",
-    URXUCD_cr ~ "尿镉 (μg/g 肌酐)",
-    sex ~ "性别",
-    race ~ "种族",
-    education ~ "教育程度",
-    smoke ~ "吸烟状况",
-    hypertension ~ "高血压"
-  )
-) %>%
-  modify_header(all_stat_cols() ~ "**{level} (加权 n = {n})**") %>%
-  modify_caption("表2. 研究人群加权基线特征及组间比较 (NHANES 2007-2012)") %>%
-  bold_labels()
 
 # 按变量名精准匹配原始P值
 p_df <- data.frame(
@@ -158,45 +131,45 @@ p_df <- data.frame(
             chisq_table$p_value[chisq_table$variable == "hypertension"])
 )
 
-tbl_body <- tbl_base$table_body
-# 匹配P值
-tbl_body$p.value <- p_df$p_val[match(tbl_body$variable, p_df$variable)]
+# 直接添加到tbl_base（保留样式）
+tbl_final <- tbl_base %>%
+  modify_table_body(
+    ~ .x %>%
+      mutate(p.value = p_df$p_val[match(variable, p_df$variable)]) %>%
+      # 关键：每个变量只保留第一行的P值，其他行设为 NA
+      group_by(variable) %>%
+      mutate(p.value = ifelse(row_number() == 1, p.value, NA)) %>%
+      ungroup()
+  ) %>%
+  modify_fmt_fun(
+    p.value ~ function(x) {
+      ifelse(is.na(x), "", 
+             ifelse(x < 0.0001, "<0.0001", 
+                    sprintf("%.4f", round(x, 4))))
+    }
+  ) %>%
+  modify_header(
+    p.value ~ "**P值**"
+  ) %>%
+  modify_caption("表2. 研究人群加权基线特征及组间比较 (NHANES 2007-2012)")
 
-tbl_final <- tbl_base
-tbl_final$table_body <- tbl_body
+print(tbl_final)
 
-# ==========4.结果导出文件==========
+# ========== 4. 导出 ==========
+
+# 导出CSV
 write.csv(chisq_table, "分类变量加权卡方结果.csv", row.names = FALSE)
 write.csv(rank_cont_table, "连续变量加权检验结果.csv", row.names = FALSE)
 
-# 提取数据框
-ft_data <- tbl_final$table_body %>%
-  select(variable, var_label, label, stat_1, stat_2, p.value) %>%
-  mutate(display_label = ifelse(is.na(label) | label == "", var_label, label)) %>%
-  select(display_label, stat_1, stat_2, p.value)
-
-# 向下填充P值（解决分类变量多行P值为空）
-ft_data <- ft_data %>% fill(p.value, .direction = "down")
-
-names(ft_data) <- c("变量", "桥本阴性", "桥本阳性", "P值")
-
-# 统一格式化P值：<0.0001 / 保留4位小数
-ft_data$`P值` <- sapply(ft_data$`P值`, function(x) {
-  if (is.na(x)) return("NA")
-  if (x < 0.0001) return("<0.0001")
-  return(format(round(x, 4), scientific = FALSE))
-})
-
-# 创建 flextable 并美化
-ft <- flextable(ft_data) %>%
+# 导出Word
+tbl_final %>%
+  as_flex_table() %>%
   theme_box() %>%
   align(align = "center", part = "all") %>%
   align(j = 1, align = "left", part = "all") %>%
   autofit() %>%
-  add_footer_lines("组间比较：P < 0.05 为差异有统计学意义。")
-
-print(ft)
-save_as_docx(ft, path = "Table2_mixed_tests.docx")
+  add_footer_lines("组间比较：P < 0.05 为差异有统计学意义。") %>%
+  save_as_docx(path = "Table2_mixed_tests.docx")
 
 # ==========5.加权多因素 Logistic 回归（三个模型）===========
 
@@ -266,6 +239,8 @@ cat("\n各四分位原始样本人数：\n")
 print(table(svy_design$variables$urine_q))
 cat("\n各四分位加权样本人数：\n")
 print(svytotal(~urine_q, svy_design))
+cat("\n各四分位HT阳性/阴性人数：\n")
+print(table(svy_design$variables$urine_q, svy_design$variables$hashimoto))
 
 # 完全调整模型公式（模型3全部协变量）
 formula_q <- as.formula(
@@ -549,7 +524,7 @@ library(stringr)
 all_sub_res <- bind_rows(
   sex_df,
   age_df_cont
-) %>%
+) 
   
 #  准备绘图数据
 fforest_input <- all_sub_res %>%

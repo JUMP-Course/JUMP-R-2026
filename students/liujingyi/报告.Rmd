@@ -1,0 +1,863 @@
+---
+title: "CLDN18 表达与结肠腺癌患者生存期的关联：基于 TCGA 数据库"
+author: "liujingyi"
+date: "2026-07-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+.libPaths(c(
+  "C:/Users/DELL/AppData/Local/R/win-library/4.6",
+  "D:/APP/R-4.6.0/R_library",
+  "D:/APP/R-4.6.0/library"
+))
+```
+
+#研究介绍
+
+##研究背景
+
+结直肠癌（CRC）是全球范围内发病率与死亡率均位居前列的恶性肿瘤，对公众健康构成重大挑战。在II期结直肠癌患者中，CLDN18mRNA的高表达是一个独立的不良预后因素。因此，发掘能够精准预测预后、指导个体化治疗的新型生物标志物，是当前结直肠癌研究领域的重点和难点。
+紧密连接蛋白（Claudins）是细胞间紧密连接的关键组分，在维持细胞极性和屏障功能中起核心作用。其中，CLDN18基因通过选择性剪接产生两种蛋白亚型（CLDN18.1和CLDN18.2）。近年研究发现，CLDN18在多种肿瘤中出现异常表达，并参与调控肿瘤的增殖、侵袭和转移。
+
+##研究内容简介
+
+本研究以TCGA数据库中的结肠腺癌（COAD）项目为数据来源，获取原发肿瘤样本的RNA-seq表达数据及对应的临床病理资料。表达水平（高、低）作为暴露变量，总生存期（OS）为结局变量，协变量为性别、年龄、病理分期、临床分期。运用R软件进行数据清洗、变量定义及分组。
+采用描述性分析CLDN18表达在结肠腺癌患者中的分布特征，采用中位数或使用survminer包的surv_cutpoint函数确定高低表达分组的临界值。通过χ²检验分析CLDN18表达与年龄、性别、临床病理参数（TNM分期等）的关联。绘制Kaplan-Meier生存曲线并采用Log-rank检验比较高低表达组的总生存期差异。进一步采用Cox比例风险回归模型，校正混杂因素后计算风险比（HR）及95%置信区间，验证CLDN18是否为独立预后因素。
+期望获得CLDN18在结肠腺癌肿瘤组织中的表达分布情况，其与各临床病理特征的相关性，揭示CLDN18高表达与患者总生存期缩短的关联，并证实其为独立不良预后标志物。研究结果可为结肠腺癌的预后评估提供新的生物标志物，并为临床治疗提供科学依据。
+
+#数据整理
+
+##整理count数据
+```{r}
+####----------------------整理count数据----------------------####
+rm(list = ls())
+#设置工作目录
+setwd("D:/gdc-client")
+#加载R包
+#install.packages("rjson")
+library("rjson")
+#读取metadata文件
+json <- jsonlite::fromJSON("metadata.cart.2026-06-01.json")
+
+#提取TCGA样本编号
+#id <- json$associated_entities[[1]][,1]
+sample_id <- sapply(json$associated_entities,function(x){x[,1]})
+#将TCGA的样本编号和表达谱文件夹名称一一对应
+file_sample <- data.frame(sample_id,file_name=json$file_name)
+
+#获取cart文件夹下的所有TSV表达文件的 路径+文件名
+count_file <- list.files('cart',pattern ='.tsv',recursive = T)
+head(count_file)#查看数据结构
+
+#在count_file中分割出文件名
+file_name <- strsplit(count_file,split='/')#以/为分隔符
+file_name <- sapply(file_name,function(x){x[2]})#选择/后的数据
+head(file_name)#查看数据结构，是否与file name一致
+
+#定义一个足够大的空矩阵
+matrix <- data.frame(matrix(nrow=60660,ncol=0))
+#提取每个样本的表达矩阵，counts数据的提取
+for (i in 1:length(file_name)){ 
+  path <- paste0('cart//',count_file[i])#读取工作路径
+  data <- read.delim(path,fill = T,header = F,row.names = 1) #读取count.tsv文件
+  colnames(data) <- data[2,]#第二行作为列名
+  data <- data[-c(1:6),]#删除前6行
+  data <- data[,3,drop=F]   #取出unstranded列（第3列），即count数据，对应其它数据可根据实际列号修改 
+  colnames(data) <- file_sample$sample_id[which(file_sample$file_name==file_name[i])] 
+  matrix <- cbind(matrix,data)
+}
+#保存表达矩阵
+write.csv(matrix,'count_matrix.csv',row.names = T)
+
+##设置Gene Symbol作为列名
+#重新读取原始表达矩阵
+path = paste0('cart//',count_file[1])
+data <- as.matrix(read.delim(path,fill = T,header = F,row.names = 1))
+#提取出第1列的gene_name（symbol）
+gene_name <- data[-c(1:6),1]#删除前6行，提取第1列
+#将gene_name（symbol）与上述未注释的基因表达谱合并
+matrix0 <- cbind(gene_name,matrix)
+
+#将gene_name列去除重复的基因，保留每个基因最大表达量结果
+matrix0 <- aggregate( . ~ gene_name,data=matrix0, max)
+#将gene_name列设为行名
+rownames(matrix0) <- matrix0[,1]
+#删除多余的第一列
+matrix0 <- matrix0[,-1]
+#保存最终整理好的counts数据
+write.csv(matrix0,'counts-COAD.csv', row.names = T)
+```
+
+##整理临床数据
+```{r}
+
+####----------------------整理临床数据----------------------####
+#rm(list = ls())
+#设置工作目录 
+setwd("D:/gdc-client")
+#此处读取metadata以及提取TCGA样本名
+library(rjson)
+json <- jsonlite::fromJSON("metadata.cart.2026-06-01.json")
+entity_submitter_id <- sapply(json$associated_entities,function(x){x[,1]})
+#提取case_id 
+case_id <- sapply(json$associated_entities,function(x){x[,3]})
+#将TCGA样本名与病人编号合并后取转置
+sample_case <- t(rbind(entity_submitter_id,case_id))
+#读取clinical.tsv文件
+clinical <- read.delim('clinical.tsv',header = T)
+colnames(clinical)[2] <- "case_id"#将clinical里的第2列重命名为case_id
+unique(clinical$cases.submitter_id)
+#识别并提取数据里存在重复的样本
+clinical_unique <- clinical[!duplicated(clinical$case_id), ]
+
+#clinical <- as.data.frame(clinical[duplicated(clinical$case_id),])
+sum(duplicated(clinical$case_id))
+#根据“case_id”这一列将TCGA样本名整合进来
+clinical_matrix <- merge(sample_case,clinical_unique,by="case_id",all.x=T)
+#此时病人的编号已经没什么用了，将其删除
+clinical_matrix <- clinical_matrix[,-1]
+#colnames(clinical_unique)
+#unique(clinical_unique$case_id) #查看几个case
+#unique(clinical_unique$cases.submitter_id) #查看几个case
+library(tidyverse)
+filter_clinical <- clinical_matrix %>% select("project.project_id","entity_submitter_id","demographic.age_at_index","demographic.gender",
+                                       "demographic.vital_status","demographic.days_to_death","diagnoses.days_to_last_follow_up",
+                                       "diagnoses.ajcc_pathologic_stage","diagnoses.ajcc_pathologic_t","diagnoses.ajcc_pathologic_m","diagnoses.ajcc_pathologic_n")
+colnames(filter_clinical)#查看列名，便于复制
+clinical_OS <- filter_clinical %>% rename(project=project.project_id,ID=entity_submitter_id,
+                                          OS=demographic.vital_status,
+                                          OS.time=diagnoses.days_to_last_follow_up,
+                                          gender=demographic.gender,
+                                          age=demographic.age_at_index,
+                                          M=diagnoses.ajcc_pathologic_m,
+                                          N=diagnoses.ajcc_pathologic_n,
+                                          T=diagnoses.ajcc_pathologic_t,
+                                          stage=diagnoses.ajcc_pathologic_stage,
+)
+
+#补齐OS.time
+library(dplyr)
+clinical_OS <- clinical_OS %>%
+  mutate(
+    OS.time = case_when(
+      OS == "Dead" & is.na(OS.time) ~ demographic.days_to_death,
+      TRUE ~ OS.time
+    ),
+    OS.time = as.numeric(OS.time)# 转为数值，便于生存分析
+  )
+clinical_OS$OS <- ifelse(str_detect(clinical_OS$OS,'Dead'),'1','0') #如果os列中为Dead是1, 其余是0
+clinical_OS.time <- clinical_OS %>% select('ID', 'OS.time', 'OS',everything())#
+view(clinical_OS.time)
+#保存临床数据
+write.csv(clinical,file = 'GDC_COAD_clinical.csv')
+write.csv(clinical_OS.time,file = 'GDC_COAD_clinical_OS.time.csv')
+save(matrix,matrix0,clinical,clinical_OS.time,file = 'GDC_COAD_data.rda')#保存为rda文件
+```
+
+##整理tpm数据
+```{r}
+####----------------------构建tpm矩阵----------------------####
+#获取cart文件夹下的所有TSV表达文件的 路径+文件名
+tpm_file <- list.files('cart',pattern ='.tsv',recursive = T)
+head(tpm_file)#查看数据结构
+#在count_file中分割出文件名
+file_name <- strsplit(tpm_file,split='/')#以/为分隔符
+file_name <- sapply(file_name,function(x){x[2]})#选择/后的数据
+head(file_name)#查看数据结构，是否与file name一致
+#定义一个足够大的空矩阵
+matrix <- data.frame(matrix(nrow=60660,ncol=0))
+#提取每个样本的表达矩阵，tpm数据的提取，用于生存分析
+for (i in 1:length(file_name)){ 
+  path <- paste0('cart//',tpm_file[i])#读取工作路径
+  data <- read.delim(path,fill = T,header = F,row.names = 1) #读取count.tsv文件
+  colnames(data) <- data[2,]#第二行作为列名
+  data <- data[-c(1:6),]#删除前6行
+  data <- data[,6,drop=F]   #tpm选择6
+  colnames(data) <- file_sample$sample_id[which(file_sample$file_name==file_name[i])] 
+  matrix <- cbind(matrix,data)
+}
+matrix_tpm <- matrix
+#保存表达矩阵
+write.csv(matrix_tpm,'tpm_matrix.csv',row.names = T)
+
+####----------------------ID与tpm合并----------------------####
+##设置Gene Symbol作为列名
+#重新读取原始表达矩阵
+path = paste0('cart//',tpm_file[1])
+data <- as.matrix(read.delim(path,fill = T,header = F,row.names = 1))
+#提取出第1列的gene_name（symbol）
+gene_name <- data[-c(1:6),1]#删除前6行，提取第1列
+#将gene_name（symbol）与上述未注释的基因表达谱合并
+matrix_tpm0 <- cbind(gene_name,matrix)
+#将gene_name列去除重复的基因，保留每个基因最大表达量结果
+matrix_tpm0 <- aggregate( . ~ gene_name,data=matrix_tpm0, max)
+#将gene_name列设为行名
+rownames(matrix_tpm0) <- matrix_tpm0[,1]
+#删除多余的第一列
+matrix_tpm0 <- matrix_tpm0[,-1]
+matrix_tpm0 <- matrix_tpm0[,sample_id]
+str(matrix_tpm0)#查看数据格式，是否为numeric
+tpm_log2 <- log2(as.data.frame(lapply(matrix_tpm0, as.numeric)) + 1)
+rownames(tpm_log2) <- rownames (matrix_tpm0)
+colnames(tpm_log2) <- gsub('\\.','-',colnames(tpm_log2))
+str(tpm_log2)
+#保存最终整理好的tpm数据
+write.csv(tpm_log2,'tpm-COAD.csv', row.names = T)
+load('GDC_COAD_data.rda')
+save(matrix,matrix0,clinical,clinical_OS.time,matrix_tpm,tpm_log2,file = 'GDC_COAD_count_tpm.rda')
+
+####----------------------整理tpm.os数据----------------------####
+#rm(list = ls())
+load('GDC_COAD_data.rda')
+load('GDC_COAD_count_tpm.rda')
+str(tpm_log2)#查看数据格式，是否为numeric
+tpm.os <- t(tpm_log2)#行列转置
+tpm.os <- as.data.frame(tpm.os)#转化为数据框
+library(tibble)
+tpm.os <- rownames_to_column(.data = tpm.os,var = 'ID') #行名转为列, ID
+tpm.os <- merge(tpm.os,clinical_OS.time,by ='ID')#两个数据框合并
+library(tidyverse)
+tpm.os <- select(.data = tpm.os,'ID','OS.time','OS',everything())#列名以'ID','os.time','os' 顺序
+tpm.os <- arrange(tpm.os,OS)#对OS列进行排序
+tpm.os$OS.time <-as.numeric(tpm.os$OS.time) /365 #天转化为年,转化为数字
+tpm.os$os <-as.numeric(tpm.os$OS)#转化为数字格式
+library(dplyr)
+tpm.os <- tpm.os %>% filter(!is.na(OS.time))
+write.csv(tpm.os,file ='GDC_COAD_tpm_os.csv')#csv保存
+save(matrix,matrix0,clinical,clinical_OS.time,matrix_tpm,tpm_log2,tpm.os,file = 'GDC_COAD_data.rda') 
+
+
+####----------------------gene.os数据----------------------####
+setwd('D:/gdc-client')#设置工作路径
+load('GDC_COAD_data.rda')
+library(survival)
+library(survminer)
+library(tidyverse)
+gene <- 'CLDN18'
+gene.os <- tpm.os
+gene.os$group <- ifelse(gene.os$CLDN18 < median(gene.os$CLDN18),"low","high")
+gene.os <- select(gene.os,group,OS,OS.time,CLDN18)
+str(gene.os)
+gene.os$OS <- as.numeric(gene.os$OS)
+str(gene.os$OS)
+#用 surv_cutpoint 找最佳截断值
+library(survminer)
+cutpoint <- surv_cutpoint(gene.os, time = "OS.time", event = "OS", variables = "CLDN18")
+cutpoint
+gene.os$group2 <- ifelse(gene.os$CLDN18 > cutpoint$cutpoint[1,"cutpoint"], "High", "Low")
+
+```
+
+#统计描述
+```{r}
+####----------------------统计描述----------------------####
+library(dplyr)
+library(tidyr)
+library(survival)
+library(survminer)
+library(ggplot2)
+#install.packages("table1")
+library(table1) 
+library(tidyverse)
+description <- 'CLDN18'
+description.os <- tpm.os
+description.os <- select(description.os,ID,OS,OS.time,CLDN18)
+str(description.os)
+description.os$OS <- as.numeric(description.os$OS)
+str(description.os$OS)
+#用 surv_cutpoint 找最佳截断值
+library(survminer)
+cutpoint <- surv_cutpoint(gene.os, time = "OS.time", event = "OS", variables = "CLDN18")
+cutpoint
+description.os$group <- ifelse(description.os$CLDN18 > cutpoint$cutpoint[1,"cutpoint"], "High", "Low")
+colnames(clinical_OS.time)
+colnames(description.os)
+clinical_subset <- clinical_OS.time %>%
+  select(ID, age, gender, stage, T, M, N)# 从 clinical_OS.time 中只提取需要的列（ID 和六个临床变量）
+description.os <- description.os %>%
+  left_join(clinical_subset, by = "ID")# 按 ID 左连接（保留 tpm.os 中的所有行，匹配上 clinical_subset 的信息）
+description.os <- description.os %>%
+  mutate(age_group = ifelse(age < 60, "< 60", "≥ 60"))# 按60岁创建年龄分组
+head(description.os)
+colnames(description.os)# 检查合并后的数据
+table(description.os$group)
+description.os <- description.os %>%
+  mutate(
+    stage = ifelse(stage == "'--" | stage == "", NA, stage),
+    T = ifelse(T == "'--" | T == "", NA, T),
+    M = ifelse(M == "'--" | M == "", NA, M),
+    N = ifelse(N == "'--" | N == "", NA, N)
+  )#stage、T、M、N 中有缺失值，需要先处理# 将 '--' 转为 NA
+colSums(is.na(description.os[, c("age", "gender", "stage", "T", "M", "N","age_group")]))#查看缺失值
+library(dplyr)
+description.os <- description.os %>%
+  filter(!is.na(stage) & !is.na(M))# 删除stage和T里面的缺失值
+#stage分组
+description.os <- description.os %>%
+  mutate(
+    stage_simple = case_when(
+      # 先处理合并后的类别
+      stage %in% c("Stage I", "Stage IA", "Stage IB", 
+                   "Stage II", "Stage IIA", "Stage IIB", "Stage IIC") ~ "Early",
+      stage %in% c("Stage III", "Stage IIIA", "Stage IIIB", "Stage IIIC",
+                   "Stage IV", "Stage IVA", "Stage IVB") ~ "Late",
+    ),
+    # 转为因子，并指定顺序
+    stage_simple = factor(stage_simple, levels = c("Early", "Late"))
+  )
+
+# 检查合并后的分布
+table(description.os$stage_simple, description.os$group)
+
+# 合并 T 分期（T1/T2 合并为早期T，T3/T4 合并为晚期T）
+description.os <- description.os %>%
+  mutate(
+    T_simple = case_when(
+      T %in% c("T1", "T2", "Tis") ~ "T1-T2",
+      T %in% c("T3", "T4", "T4a", "T4b") ~ "T3-T4",
+     ),
+    # 合并 M 分期（M0、M1、MX）
+    M_simple = case_when(
+      M == "M0" ~ "M0",
+      M %in% c("M1", "M1a", "M1b") ~ "M1",
+      M == "MX" ~ "MX",
+    ),
+    # 合并 N 分期（N0、N1、N2）
+    N_simple = case_when(
+      N == "N0" ~ "N0",
+      N %in% c("N1", "N1a", "N1b", "N1c") ~ "N1",
+      N %in% c("N2", "N2a", "N2b") ~ "N2",
+    ),
+  )
+# 转为因子
+description.os$T_simple <- factor(description.os$T_simple, levels = c("T1-T2", "T3-T4"))
+description.os$M_simple <- factor(description.os$M_simple, levels = c("M0", "M1", "MX"))
+description.os$N_simple <- factor(description.os$N_simple, levels = c("N0", "N1", "N2"))
+description.os$gender <- factor(description.os$gender, levels = c("female", "male"))# 把 gender 转为因子
+colSums(is.na(description.os[, c("age", "gender", "stage", "T", "M", "N","age_group")]))#查看缺失值
+table1(~ age_group + gender + stage_simple + T_simple + M_simple + N_simple | group, data = description.os)# 使用 table1 包制作按 group 分层的基线表
+#保存table1
+#install.packages("flextable")
+library(flextable)
+tab1 <- table1(~ age_group + gender + stage_simple + T_simple + M_simple + N_simple | group, data = description.os)
+tab1_df <- as.data.frame(tab1)# 把 table1 转为数据框
+ft <- flextable(tab1_df)#创建 flextable 对象
+# 美化表格
+ft <- theme_vanilla(ft)      # 使用简洁主题
+ft <- autofit(ft)            # 自动调整列宽
+ft <- bold(ft, part = "header")  # 表头加粗
+ft <- align(ft, align = "center", part = "all")  # 所有文字居中
+#保存为 Word 文档
+save_as_docx(ft, path = "Table1.docx")
+
+#箱线图
+boxplot_cl <- ggplot(description.os, aes(x = group, y = .data[["CLDN18"]], fill = group)) +
+  geom_boxplot() +
+  labs(
+    title = "CLDN18 expression by risk group",
+    x = "Group",
+    y = "CLDN18 expression (log2 TPM + 1)"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("Low" = "blue", "High" = "red"))
+print(boxplot_cl)
+# 保存箱线图
+ggsave("CLDN18_boxplot.png", boxplot_cl, width = 6, height = 5)
+```
+
+##结果解读
+
+本研究共纳入324例研究对象，按 CLDN18 表达水平分为高表达组（115 例）和低表达组（209 例）。
+年龄分布：总体人群中，年龄＜60岁者90例（27.8%），≥60岁者234例（72.2%）。高值组中＜60岁者30例（26.1%），≥60岁者85例（73.9%）；低值组中相应人数分别为60例（28.7%）和149例（71.3%），两组年龄构成基本相似。
+性别分布：总体女性148例（45.7%），男性176例（54.3%）。高值组女性51例（44.3%），男性64例（55.7%）；低值组女性97例（46.4%），男性112例（53.6%），两组性别比例无明显差异。
+临床分期：总体早期（Early）193例（59.6%），晚期（Late）131例（40.4%）。高值组早期74例（64.3%），晚期41例（35.7%）；低值组早期119例（56.9%），晚期90例（43.1%），高值组早期比例略高于低值组。
+T分期：总体T1-T2期65例（20.1%），T3-T4期259例（79.9%）。高值组T1-T2期24例（20.9%），T3-T4期91例（79.1%）；低值组T1-T2期41例（19.6%），T3-T4期168例（80.4%），两组T分期构成基本一致。
+M分期：总体M0期239例（73.8%），M1期40例（12.3%），MX期45例（13.9%）。高值组M0期91例（79.1%），M1期5例（4.3%），MX期19例（16.5%）；低值组M0期148例（70.8%），M1期35例（16.7%），MX期26例（12.4%）。可见低值组M1期比例（16.7%）明显高于高值组（4.3%）。
+N分期：总体N0期201例（62.0%），N1期74例（22.8%），N2期49例（15.1%）。高值组N0期75例（65.2%），N1期21例（18.3%），N2期19例（16.5%）；低值组N0期126例（60.3%），N1期53例（25.4%），N2期30例（14.4%）。两组N分期分布总体相近，但低值组N1期比例略高。
+对高值组与低值组CLDN18基因表达水平进行比较分析，以log2(TPM+1)转换后的表达值作为量化指标。结果显示，高值组CLDN18表达水平为5.5，低值组为0.2，高值组的CLDN18表达水平明显高于低值组。
+
+#统计推断
+```{r}
+####----------------------统计推断----------------------####
+# 1 年龄的 卡方检验（高表达组 vs 低表达组）
+chisq.test(table(description.os$group, description.os$age_group))
+# 2 性别的卡方检验
+chisq.test(table(description.os$group, description.os$gender))
+# 3 分期的卡方检验
+chisq.test(table(description.os$group, description.os$stage_simple))
+# 4 T的卡方检验
+chisq.test(table(description.os$group, description.os$T_simple))
+#5 M的卡方检验
+chisq.test(table(description.os$group, description.os$M_simple))
+# 6 N的卡方检验
+chisq.test(table(description.os$group, description.os$N_simple))
+```
+
+##结果解读
+
+本研究共纳入 324 例结肠腺癌患者，按 CLDN18 表达水平分为高表达组（115 例）和低表达组（209 例）。基线特征分析显示，两组在年龄（P = 0.708）、性别（P = 0.810）、临床分期（P = 0.237）、T 分期（P = 0.901）和 N 分期（P = 0.340）上的分布均无统计学差异，提示两组具有可比性。值得注意的是，M 分期在两组间存在显著差异（P = 0.004），低表达组中 M1（远处转移）的比例（16.7%）高于表达组（4.3%），说明CLDN18 低表达可能与肿瘤远处转移能力增强相关。
+
+#KM生存曲线
+```{r}
+####----------------------绘制生存曲线----------------------####
+?ggsurvplot
+fit <- survfit(Surv(OS.time,OS)~group2, data=gene.os)
+KM <- ggsurvplot(fit,data = gene.os,
+                 conf.int=T,#是否展示置信区间
+                 pval=T,pval.size=5,#是否展示P值，及P值大小
+                 legend.labs=c('High','Low'),#group命名
+                 legend.title='CLDN18 exp',xlab='Time(years)',#图例及x轴名
+                 legend=c(0.9,0.9),font.legend=10,#图例位置及大小
+                 risk.table = T,#是否展示risk table
+                 break.time.by=1,#按1年间隔展示
+                 palette = c('red','blue'),#自定义颜色
+                 surv.median.line = 'hv',#添加中位数参考线，h水平，v垂直，none不添加
+                 risk.table.height=.3)#数值(在[0-1]中)，指定主生存图下所有表格的总体高度。
+KM
+#pdf保存km曲线
+pdf(file = 'KM2_CLDN18.pdf',width = 6,height = 6)
+KM
+dev.off()
+```
+
+##结果解读
+
+生存曲线显示，高表达组与低表达组在随访期间的生存概率存在一定分离，但两组间差异未达到统计学显著性水平（log-rank检验，p = 0.054）。两组均未达到中位生存时间（>50% 患者存活至随访结束），说明整体预后较好。
+
+#CLDN18单因素Cox回归
+```{r}
+####----------------------CLDN18单因素Cox回归----------------------####
+library(survival)
+library(survminer)
+library(ggplot2)
+library(data.table)
+library(dplyr)
+gene_cox <- gene.os[, c("OS.time", "OS", "CLDN18")]
+gene_cox <- gene_cox[gene_cox$OS.time > 0, ]
+nrow(gene_cox)
+gene_cox <- as.data.frame(gene_cox)# 把 use_cox 转为数据框
+cox_cldn18 <- coxph(Surv(OS.time, OS) ~ `CLDN18`, data = gene_cox)  # 如果列名是 "CLDN18"
+# 查看结果
+summary(cox_cldn18)
+# 加载森林图绘图包
+library(survminer)
+# 用 ggforest 直接画
+forest_plot <- ggforest(cox_cldn18, data = gene_cox, 
+         main = "Hazard Ratio of CLDN18", 
+         cpositions = c(0.02, 0.22, 0.4), 
+         fontsize = 1, 
+         noDigits = 3)
+forest_plot
+# 保存森林图
+ggsave("CLDN18_forest_plot.png", plot = forest_plot, width = 10, height = 7, dpi = 300)
+
+```
+
+##结果解读
+
+结果显示，CLDN18表达作为连续变量时，其风险比（ HR）为1.02，95%置信区间（95%CI）为0.914 ~ 1.15，p值为0.691。总体log-rank检验的全局p值为0.697。上述结果表明，CLDN18表达水平在本研究人群中未显示出对总生存期的显著独立预测作用。
+
+#单因素Cox回归、Lasso-cox回归、多因素Cox回归
+
+##单因素Cox回归
+```{r}
+####----------------------单因素Cox回归----------------------####
+use_cox <- tpm.os
+use_cox <- as.data.frame(use_cox)# 把 use_cox 转为数据框
+td <- use_cox
+outResult <- data.frame()
+sigGenes <- c("surstat","surtime")
+class(td$OS)
+td$OS <- as.numeric(td$OS)
+library(data.table)
+gene_name <- fread("gene_name.tsv", data.table = FALSE)
+gene_name_subset <- gene_name[, 1:3]
+gene_name_clean <- gene_name_subset[-c(1:4), ]
+protein_coding_names <- gene_name_clean$gene_name[gene_name_clean$gene_type == "protein_coding"]# 提取 protein_coding 的基因名
+keep_cols <- intersect(colnames(td), protein_coding_names)
+td_protein <- td[, c("ID","OS.time", "OS", keep_cols)]# 只保留 td 里属于 protein_coding 的列
+dim(td_protein)
+head(colnames(td_protein), 10)  # 查看前 10 个列名
+#基因列从第 4 列开始
+expr_data <- td_protein[, 4:ncol(td_protein)]
+# 计算每个基因在所有样本中的平均表达量（或中位数）
+gene_means <- colMeans(expr_data, na.rm = TRUE)
+# 只保留平均表达量 > 0.1 的基因
+keep_genes <- names(gene_means[gene_means > 0.1])
+td_filtered <- td_protein[, c("ID","OS.time", "OS", keep_genes)]
+# 看看还剩多少
+ncol(td_filtered) - 3
+grep("CLDN18", colnames(td_filtered), ignore.case = TRUE, value = TRUE)
+# 计算每个基因的方差
+gene_vars <- apply(td_filtered[, 4:ncol(td_filtered)], 2, var, na.rm = TRUE)
+# 只保留方差大于 75% 分位数的基因（即变异最大的前 25%）
+threshold <- quantile(gene_vars, 0.75, na.rm = TRUE)
+keep_genes <- names(gene_vars[gene_vars > threshold])
+td_filtered <- td_filtered[, c("ID","OS.time", "OS", keep_genes)]
+grep("CLDN18", colnames(td_filtered), ignore.case = TRUE, value = TRUE)
+ncol(td_filtered) - 3
+library(survival)
+genes <- colnames(td_filtered)[4:ncol(td_filtered)]
+p_values <- numeric(length(genes))
+
+for (i in seq_along(genes)) {
+  formula <- as.formula(paste0("Surv(OS.time, OS) ~ `", genes[i], "`"))
+  cox_result <- tryCatch(
+    coxph(formula, data = td_filtered),
+    error = function(e) NULL
+  )
+  if (!is.null(cox_result)) {
+    p_values[i] <- summary(cox_result)$coefficients[, "Pr(>|z|)"]
+  } else {
+    p_values[i] <- NA
+  }
+}
+
+# 只保留 p < 0.05 的基因
+keep_genes <- genes[!is.na(p_values) & p_values < 0.05]
+td_filtered <- td_filtered[, c("ID","OS.time", "OS", keep_genes)]
+grep("CLDN18", colnames(td_filtered), ignore.case = TRUE, value = TRUE)
+ncol(td_filtered) - 3
+
+
+result_list <- lapply(colnames(td_filtered)[4:ncol(td_filtered)], function(i) {
+  formula <- as.formula(paste0("Surv(OS.time, OS) ~ `", i, "`"))
+  tdxcox <- coxph(formula, data = td_filtered)
+  tdxcoxSummary <- summary(tdxcox)
+  
+  data.frame(
+    id = i,
+    HR = tdxcoxSummary$conf.int[, "exp(coef)"],
+    L95CI = tdxcoxSummary$conf.int[, "lower .95"],
+    H95CI = tdxcoxSummary$conf.int[, "upper .95"],
+    pvalue = tdxcoxSummary$coefficients[, "Pr(>|z|)"]
+  )
+})
+
+# 一次性合并所有结果
+outResult <- do.call(rbind, result_list)
+# 转成数值型
+outResult$pvalue <- as.numeric(outResult$pvalue)
+outResult$HR <- as.numeric(outResult$HR)
+outResult$L95CI <- as.numeric(outResult$L95CI)
+outResult$H95CI <- as.numeric(outResult$H95CI)
+
+library(tibble)
+library(dplyr)
+outResult <- column_to_rownames(outResult,var = 'id')
+outResult <- arrange(outResult,HR)
+outResultt <- as.matrix(outResult)
+colnames(outResult)
+HR <- outResult[,1:3] #注意第123列为 "HR""L95CI""H95CI"
+#可视化作图
+# ----- 1. 准备数据-----
+# 按 HR 排序（从小到大）
+plot_data <- outResult[order(outResult$HR), ]
+
+# 提取数据
+gene_names <- rownames(plot_data)
+HR <- plot_data$HR
+lower <- plot_data$L95CI
+upper <- plot_data$H95CI
+p_vals <- plot_data$pvalue
+
+# ----- 2. 设置每页显示的基因数 -----
+genes_per_page <- 30
+
+# 计算总页数
+total_genes <- nrow(plot_data)
+n_pages <- ceiling(total_genes / genes_per_page)
+
+# ----- 3. 循环分页画图并保存 -----
+for (page in 1:n_pages) {
+  
+  # 计算当前页的起止行
+  start_row <- (page - 1) * genes_per_page + 1
+  end_row <- min(page * genes_per_page, total_genes)
+  
+  # 提取当前页的数据
+  page_genes <- plot_data[start_row:end_row, ]
+  page_names <- rownames(page_genes)
+  page_HR <- page_genes$HR
+  page_lower <- page_genes$L95CI
+  page_upper <- page_genes$H95CI
+  page_p <- page_genes$pvalue
+  
+  # 构建当前页的表格文字（表头 + 基因）
+  tabletext <- cbind(
+    c("Gene", page_names),
+    c("HR (95% CI)", paste0(round(page_HR, 2), " (", round(page_lower, 2), "-", round(page_upper, 2), ")")),
+    c("P value", round(page_p, 4))
+  )
+  
+  # 打开 PDF 设备（每页一个 PDF）
+  pdf(file = paste0("Forest_plot_page_", page, ".pdf"), 
+      width = 10, height = 8)
+  # 加载森林图绘图包
+  library(forestplot)
+  # 画森林图
+  p <- forestplot(
+    labeltext = tabletext,
+    mean = c(NA, page_HR),
+    lower = c(NA, page_lower),
+    upper = c(NA, page_upper),
+    zero = 1,
+    boxsize = 0.15,
+    line.margin = 0.1,
+    col = fpColors(box = "royalblue", line = "darkblue", zero = "red"),
+    xlab = "Hazard Ratio (95% CI)",
+    title = paste0("Univariate Cox Regression Forest Plot (Page ", page, "/", n_pages, ")")
+  )
+  
+  p
+  
+  # 关闭 PDF 设备
+  dev.off()
+  
+  cat("已保存第", page, "/", n_pages, "页，包含", nrow(page_genes), "个基因\n")
+}
+
+cat("所有森林图已保存！共", n_pages, "个 PDF 文件。\n")
+
+
+```
+
+###结果解读
+
+单因素Cox回归分析共识别出260个与患者总生存期显著相关的基因（P<0.05），其中60个基因为保护性因素（HR<1），200个基因为危险因素（HR>1）。上述结果表明，该疾病预后相关分子图谱具有高度异质性，多个基因表达水平与患者生存结局显著相关，为进一步构建多基因预后预测模型及探索潜在治疗靶点提供了候选分子基础。
+
+
+##Lasso-cox降维
+```{r}
+####----------------------Lasso-cox降维----------------------####
+#install.packages("glmnet")
+library(glmnet)
+#设置随机种子
+set.seed(123)
+dat<-td_filtered
+str(dat)
+sum(dat$OS.time <= 0)
+dat <- dat[dat$OS.time > 0, ]
+#构建Lasso回归模型x，y
+x <- as.matrix(dat[,c(4:ncol(dat))])
+y <- Surv(dat$OS.time,dat$OS)
+fit <- glmnet(x, y, family = "cox", nfolds = 10, lambda.min.ratio = 0.01)
+#c-index
+cvfit <- cv.glmnet(x,y,family='cox',type.measure = 'C',nfolds = 10)
+pdf(file = 'lasso.c-index.pdf',width = 6,height = 6)
+plot(cvfit)
+abline(v=log(c(cvfit$lambda.min, cvfit$lambda.1se)),lty='dashed')
+dev.off()
+plot(cvfit)
+#deviance
+cvfit <- cv.glmnet(x,y,family='cox',type.measure = 'deviance',nfolds=10)
+pdf(file = 'lasso.cvfit.pdf',width = 6,height = 6)
+plot(cvfit)
+abline(v=log(c(cvfit$lambda.min,cvfit$lambda.1se)),lty='dashed')
+dev.off()
+plot(cvfit)
+#coefficients
+pdf(file = 'lasso.lambda.pdf',width = 6,height = 6)
+plot(fit,xvar = 'lambda',label = T)
+abline(v=log (c(cvfit$lambda.min)),lty='dashed')
+dev.off()
+plot(fit,xvar = 'lambda',label = T)
+#输出lasso结果
+coef <- coef(fit,s=cvfit$lambda.min)
+index <- which(coef!=0)
+actcoef <- coef[index]
+lassogenes <- row.names(coef)[index]
+lassogenes
+genecoef <- cbind(Gene=lassogenes,Coef=actcoef)
+exp3 <- select(dat,c(1:3,lassogenes))
+write.csv(exp3,file = 'lasso.tpm.csv')
+
+
+```
+
+###结果解读
+
+在LASSO-Cox回归中，通过10折交叉验证计算不同log(λ)值下的部分似然偏差（Partial Likelihood Deviance），以评估模型拟合优度。交叉验证曲线显示（图1），随着log(λ)值由小到大（即惩罚力度由弱到强），模型的部分似然偏差先下降后上升。在最佳λ值处，模型达到最小的交叉验证偏差，对应的变量数量约为12个。该结果表明，约12个基因构成的模型在预测性能与模型简洁性之间达到了最佳平衡。
+LASSO回归系数路径图展示了在不同log(λ)值下各基因回归系数的收缩轨迹（图2）。随着惩罚参数λ的增大（即-log(λ)值减小），各基因的回归系数逐渐向零收缩，最终部分变量系数被压缩至零而从模型中剔除。图中每条曲线代表一个基因的系数变化轨迹，右侧标注的数字为最终模型中保留的非零系数基因在原始变量集中的序号索引，筛选出 61 个基因。
+为评估LASSO回归模型的预测区分能力，计算了不同λ值对应的C-index（一致性指数，Concordance Index）。随着λ值的变化，模型的C-index呈现相应波动（图3）。在最佳λ值下，模型达到较高的C-index值，提示该预后模型对患者生存结局具有良好的区分度。
+
+##多因素Cox回归
+```{r}
+####----------------------多因素Cox回归----------------------####
+setwd('D:/gdc-client')#设置工作路径
+library(survival)
+library(survminer)
+library(tidyverse)
+#数据导入
+det <- read.csv(file = 'lasso.tpm.csv',header = T,row.names =1)
+rownames(det) <- NULL
+det <- column_to_rownames(det,var = 'ID')
+#多因素cox
+multicox <- coxph(Surv(OS.time,OS)~.,data = det)
+multicoxSum <- summary(multicox)
+multicoxSum
+#colnames(multicoxSum$conf.int)
+multicoxres<-cbind(HR=multicoxSum$conf.int[,'exp(coef)'],
+                   HR.95L=multicoxSum$conf.int[,'lower .95'],
+                   HR.95H=multicoxSum$conf.int[,'upper .95'],
+                   pvalue=multicoxSum$coefficients[,"Pr(>|z|)"])
+view(multicoxres)
+rownames(multicoxres)
+write.csv(multicoxres,file ='多因素.csv',row.names = T)
+rt <- read.csv('多因素.csv',header = T,row.names = 1)
+diff <- rt %>% filter(pvalue < 0.05) %>% row.names()
+diff
+exp4 <- select(det,c(1:2,diff))
+write.csv(exp4,file ='多因素tpm.csv',row.names = T)
+#可视化作图
+#多因素cox
+colnames(det)
+library(survival)
+library(forestplot)
+# 确保数据没有 NA
+det_clean <- det[complete.cases(det), ]
+# 重新建模
+multicox <- coxph(Surv(OS.time, OS) ~ ., data = det_clean, model = TRUE)
+# 查看结果
+summary(multicox)
+# 提取结果
+cox_sum <- summary(multicox)
+# 提取变量名
+var_names <- rownames(cox_sum$coefficients)
+# 提取 HR、CI、P 值
+HR <- cox_sum$coefficients[, "exp(coef)"]
+CI_lower <- cox_sum$conf.int[, "lower .95"]
+CI_upper <- cox_sum$conf.int[, "upper .95"]
+P_val <- cox_sum$coefficients[, "Pr(>|z|)"]
+# 格式化文字
+hr_text <- sprintf("%.2f", HR)
+ci_text <- sprintf("%.2f (%.2f-%.2f)", HR, CI_lower, CI_upper)
+p_text <- ifelse(P_val < 0.001, "<0.001", sprintf("%.3f", P_val))
+# 构建表格 矩阵格式
+tabletext <- cbind(
+  c("Variable", var_names),
+  c("HR (95% CI)", ci_text),
+  c("P value", p_text)
+)
+# 画森林图（用 forestplot）
+forestplot(
+  labeltext = tabletext,
+  mean = c(NA, HR),
+  lower = c(NA, CI_lower),
+  upper = c(NA, CI_upper),
+  zero = 1,
+  boxsize = 0.2,
+  line.margin = 0.1,
+  col = fpColors(box = "royalblue", line = "darkblue", zero = "red"),
+  xlab = "Hazard Ratio (95% CI)",
+  title = "Multivariate Cox Regression Forest Plot"
+)
+# 保存为 PDF
+pdf(file = "多-森林图.pdf", width = 10, height = max(6, length(var_names) * 0.4))
+forestplot(
+  labeltext = tabletext,
+  mean = c(NA, HR),
+  lower = c(NA, CI_lower),
+  upper = c(NA, CI_upper),
+  zero = 1,
+  boxsize = 0.2,
+  line.margin = 0.1,
+  col = fpColors(box = "royalblue", line = "darkblue", zero = "red"),
+  xlab = "Hazard Ratio (95% CI)",
+  title = "Multivariate Cox Regression Forest Plot"
+)
+dev.off()
+
+
+setwd('D:/gdc-client')
+library(survival)
+library(forestplot)
+
+# 1. 读取数据
+exp4 <- read.csv('多因素tpm.csv', header = T, row.names = 1)
+
+# 2. 建模
+multicox <- coxph(Surv(OS.time, OS) ~ ., data = exp4)
+sum_multicox <- summary(multicox)
+
+# 3. 提取结果
+var_names <- rownames(sum_multicox$coefficients)
+HR <- sum_multicox$coefficients[, "exp(coef)"]
+L95CI <- sum_multicox$conf.int[, "lower .95"]
+H95CI <- sum_multicox$conf.int[, "upper .95"]
+P_val <- sum_multicox$coefficients[, "Pr(>|z|)"]
+
+# 4. 构建表格
+tabletext <- cbind(
+  c("Variable", var_names),
+  c("HR (95% CI)", paste0(sprintf("%.2f", HR), " (", sprintf("%.2f", L95CI), "-", sprintf("%.2f", H95CI), ")")),
+  c("P value", ifelse(P_val < 0.001, "<0.001", sprintf("%.3f", P_val)))
+)
+
+# 5. 画图
+forestplot(
+  labeltext = tabletext,
+  mean = c(NA, HR),
+  lower = c(NA, L95CI),
+  upper = c(NA, H95CI),
+  zero = 1,
+  col = fpColors(box = "royalblue", line = "darkblue", zero = "red"),
+  xlab = "Hazard Ratio (95% CI)",
+  title = "Multivariate Cox Regression (p < 0.05)"
+)
+
+pdf('多因素_显著基因_森林图.pdf', width = 10, height = 10)
+forestplot(
+  labeltext = tabletext,
+  mean = c(NA, HR),
+  lower = c(NA, L95CI),
+  upper = c(NA, H95CI),
+  zero = 1,
+  col = fpColors(box = "royalblue", line = "darkblue", zero = "red"),
+  xlab = "Hazard Ratio (95% CI)",
+  title = "Multivariate Cox Regression (p < 0.05)"
+)
+dev.off()
+
+```
+
+###结果解读
+
+多因素Cox回归分析表明，在LASSO筛选后的基因集中，28个基因是患者总生存期的独立预后因素（P<0.05）。其中14个保护性基因（CTLA4、APOH、H2BC13、PDLIM7、PLXNB3、DIO2、ZBTB7C、SLC30A2、GDF15、MMP10、EGFL7、CTXN1）的高表达与死亡风险降低相关；14个危险性基因（CALB1、HSPA1A、PNMA5、HOXC6、SFTA2、PLCH2、CRIP2、IRX3、HOXD8、NPM3、PCOLCE2、TMEM139、SERPINI1、IGSF9、PGF、ERFE、GPRC5B、IDUA）的高表达与死亡风险升高相关。其中IDUA（HR=12.95）和GPRC5B（HR=12.11）的风险效应最为突出，其可能为关键的预后不良相关分子标志物。
+
+#结论
+
+1.研究共纳入324例患者，高表达组115例（35.5%），低表达组209例（64.5%）。两组在年龄、性别、分期、T分期及N分期上均无显著差异（P均>0.05），M分期分布差异有统计学意义（P=0.004），低表达组M1期比例（16.7%）高于高表达组（4.3%）。
+
+2.高表达组CLDN18表达水平（log2(TPM+1)）为5.5，低表达组为0.2。
+
+3.生存分析结果显示，高表达组与低表达组间总生存期差异未达统计学显著性（log-rank P=0.054）。
+
+4.单因素Cox回归分析进一步证实，CLDN18表达水平与患者总生存期无显著关联（HR=1.02，95% CI: 0.914~1.15，P=0.691）。
+
+#讨论
+
+1.LDN18表达与临床病理特征的关系
+
+本研究发现，CLDN18高表达组与低表达组在年龄、性别、临床分期、T分期及N分期上均无显著差异（P均>0.05），但M分期在两组间分布差异具有统计学意义（P=0.004），低表达组M1期比例（16.7%）显著高于高表达组（4.3%），提示CLDN18低表达可能与远处转移倾向增加有关。
+Chang等的研究通过IHC验证发现，Claudin 18蛋白在PNI阳性结直肠癌组织中的阳性表达率（56.8%）显著高于PNI阴性组织（33.3%，P=0.026），且其表达与年龄（P=0.014）和淋巴管侵犯（P=0.042）显著相关。该研究聚焦于II期CRC患者，发现CLDN18高表达与局部侵袭性特征（PNI、淋巴管侵犯）相关；而本研究发现CLDN18低表达与远处转移（M1期）相关。二者看似矛盾，实则可能揭示了CLDN18在肿瘤演进不同阶段的功能差异——在早期（II期）可能主要参与局部神经侵犯，而在晚期可能通过表达下调促进远处血行转移。此外，该研究还发现CLDN18表达与年龄相关，而本研究中两组年龄分布无显著差异（P=0.708），这一差异可能源于人群构成（II期 vs. 全分期）及检测平台（IHC蛋白 vs. RNA-seq转录组）的不同。
+
+2.CLDN18与预后的关联
+
+本研究的生存分析显示，CLDN18高表达组与低表达组之间的总生存期差异未达统计学显著性（log-rank P=0.054），虽呈现边缘显著趋势，但单因素Cox回归分析进一步确认CLDN18表达与OS无显著线性关联（HR=1.02，95% CI: 0.914~1.15，P=0.691）。Chang等的研究则证实，CLDN18高表达是II期CRC患者总生存期的独立不良预后因素（P=0.003），并将其纳入Nomogram预后模型，模型预测1年、3年、5年OS的AUC值分别达0.726、0.679和0.786。
+
+该研究的结论与本研究的差异可从以下角度解释：（1）人群异质性：该研究严格限定为II期CRC患者，而本研究纳入全分期（I~IV期）患者，不同分期中CLDN18的预后效应可能被混杂因素稀释，尤其M1期患者在低表达组中占比过高可能干扰整体分析；（2）效应量差异：本研究的HR接近1.0，效应量极小，即使有统计学意义也缺乏临床实用价值，而该研究虽未明确报告HR具体数值，但P=0.003提示效应量可能更大；（3）建模策略差异：该研究通过多因素Cox回归校正了年龄、性别等混杂因素后确认CLDN18的独立预后价值，而本研究仅报告了单因素Cox结果，未校正其他变量，可能低估了其真实效应；（4）CLDN18亚型特异性：CLDN18基因经选择性剪接产生CLDN18.1和CLDN18.2两种蛋白亚型，二者组织分布和功能不同。本研究基于总mRNA水平检测，无法区分亚型；而该研究采用的IHC多克隆抗体可能对特定亚型具有识别偏好，两种方法的检测差异也可能导致结论不一致。
+
+值得注意的是，本研究中KM曲线P=0.054与Cox回归P=0.691之间存在明显差异，提示CLDN18的预后效应可能表现为非线性或存在阈值效应——即CLDN18对预后的影响可能在特定表达截断值附近呈现跳跃式变化，而非随表达水平线性递增。研究通过surv_cutpoint确定最佳截断值进行高/低分组，可能捕捉到了这种非线性效应；而本研究在Cox回归中将CLDN18作为连续变量处理，可能因模型设定不当而低估了其真实预后关联。
+
+
+#个人总结
+
+在本研究中，我基于TCGA数据库，探讨了紧密连接蛋白家族成员CLDN18在结肠腺癌（COAD）中的表达及其与患者预后的关联，旨在发掘新的预后生物标志物。研究初期，我独立完成了大规模数据集的下载、清洗、整合与标准化工作，构建了包含临床信息与表达谱的分析矩阵，这为我后续的深入分析奠定了扎实的基础。
+
+通过严谨的统计分析，我得出以下结论：虽然基线特征显示两组在临床病理特征上具有可比性，但低CLDN18表达组中M1（远处转移）期患者的比例显著更高，提示其表达下调可能与肿瘤的远处播散能力增强有关。然而，无论是通过Kaplan-Meier生存曲线还是单因素Cox回归模型分析，均未能证明CLDN18表达水平是结肠腺癌患者总生存期的独立危险因素（Log-rank P = 0.054, HR = 1.02, 95% CI: 0.914 - 1.15, P = 0.691）。
+
+面对与既往研究（如Chang等人的II期CRC研究）结论不完全一致的结果，最可能得原因是本研究在Cox回归中将CLDN18作为连续变量处理，可能因模型设定不当而低估了其真实预后关联。
+
+总而言之，本项研究通过系统的生物信息学分析，为CLDN18在结肠腺癌中的预后价值提供了新的循证证据。尽管未能证实其作为独立的预测因子，但我通过对结果的深入辨析，明确了其与转移的关联，并成功构建了一个多基因预后模型。这一过程不仅加深了我对结肠癌分子异质性的理解，也锻炼了我独立进行高通量数据挖掘、统计建模和批判性科学思维的能力，为未来的研究工作积累了宝贵经验。
