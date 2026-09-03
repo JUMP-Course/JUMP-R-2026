@@ -1,0 +1,993 @@
+# ============================================================================
+# 1. 加载工具包
+# ============================================================================
+library(readxl)  
+library(VIM)      
+library(tableone) 
+library(gtsummary)
+library(ggplot2)  
+library(patchwork)
+library(dplyr)   
+
+# ============================================================================
+# 2. 读取原始 Excel 数据
+# ============================================================================
+read_excel("E:\\Desktop\\全部纳入.xlsx")               
+data1 <- read_excel("E:\\Desktop\\全部纳入.xlsx")   
+View(data1)                                           
+summary(data1)                                        
+
+# ============================================================================
+# 3. 缺失值探索与可视化
+# ============================================================================
+aggr(data1)                                           
+table(complete.cases(data1))                           
+
+# ============================================================================
+# 4. 数据清洗
+# ============================================================================
+# 定义需要检查完整性的关键变量
+cols <- c("高血压", "血脂异常", "糖尿病", "睡眠时间", "饮酒", "吸烟",
+          "医疗保险", "年龄", "教育", "舒张压", "收缩压", "BMI",
+          "总收入", "性别", "婚姻", "城乡")
+
+# 将空字符串和空格替换为缺失值 NA
+data1[data1 == ""] <- NA
+data1[data1 == " "] <- NA
+
+# 仅保留在 cols 列中均无缺失的行
+data1_clean <- data1[complete.cases(data1[, cols]), ]
+
+View(data1_clean)                                      
+summary(data1)                                         
+summary(data1_clean)                                  
+
+# ============================================================================
+# 5. 按纳入标准筛选
+# ============================================================================
+data_new <- data1_clean[data1_clean$总收入 >= 1000 & 
+                          data1_clean$睡眠时间 >= 2 & 
+                          data1_clean$年龄 >= 50, ]
+View(data_new)
+
+# ============================================================================
+# 6. 变量类型转换与分组
+# ============================================================================
+# ---- 6.1 睡眠时间----
+data_new$睡眠时间 <- as.numeric(as.character(data_new$睡眠时间))
+data_new$sleep_group <- cut(data_new$睡眠时间,
+                            breaks = c(-Inf, 6, 7, 8, 9, Inf),
+                            labels = c("<6h", "6~<7h", "7~<8h", "8~<9h", "≥9h"),
+                            right = FALSE)  
+
+# ---- 6.2 年龄----
+data_new$年龄 <- as.numeric(as.character(data_new$年龄))
+data_new$age_group <- cut(data_new$年龄,
+                          breaks = c(49, 60, 70, 80, Inf),
+                          labels = c("50-60", "61-70", "71-80", "≥81"),
+                          right = TRUE)   
+
+# ---- 6.3 总收入：转为数值，查看分布，按四分位数分成低中高三组----
+data_new$总收入 <- as.numeric(as.character(data_new$总收入))
+hist(data_new$总收入, breaks = 30, main = "收入分布")    
+boxplot(data_new$总收入, main = "收入箱线图")            
+
+med <- median(data_new$总收入, na.rm = TRUE)          
+q25 <- quantile(data_new$总收入, 0.25, na.rm = TRUE)    
+q75 <- quantile(data_new$总收入, 0.75, na.rm = TRUE)    
+
+data_new$income_group <- cut(data_new$总收入,
+                             breaks = c(-Inf, q25, q75, Inf),
+                             labels = c("低收入", "中等收入", "高收入"),
+                             include.lowest = TRUE)
+table(data_new$income_group)                          
+
+# ---- 6.4 BMI----
+data_new$BMI <- as.numeric(as.character(data_new$BMI))
+data_new$bmi_group <- cut(data_new$BMI,
+                          breaks = c(-Inf, 18.5, 24, 28, Inf),
+                          labels = c("<18.5 (偏瘦)", "18.5~<24 (正常)",
+                                     "24~<28 (超重)", "≥28 (肥胖)"),
+                          right = FALSE) 
+
+# ---- 6.5 高血压（结局变量） ----
+data_new$高血压 <- factor(data_new$高血压, levels = c(0, 1),
+                       labels = c("非高血压", "高血压"))
+
+# ============================================================================
+# 7. 定义连续变量和分类变量列表
+# ============================================================================
+contVars <- c("年龄", "睡眠时间", "BMI", "总收入")
+catVars <- c("性别", "城乡", "婚姻", "饮酒", "吸烟", "医疗保险", "教育",
+             "sleep_group", "age_group", "bmi_group", "income_group")
+
+# ============================================================================
+# 8. 生成描述性统计表（Table 1），按高血压分组，含总体和 p 值
+# ============================================================================
+table1 <- data_new %>%
+  select(高血压, all_of(contVars), all_of(catVars)) %>%
+  tbl_summary(
+    by = 高血压,
+    statistic = list(all_continuous() ~ "{mean} ± {sd}",
+                     all_categorical() ~ "{n} ({p}%)"),
+    digits = all_continuous() ~ 1,
+    label = list(年龄 ~ "年龄 (岁)",
+                 睡眠时间 ~ "睡眠时长 (小时)",
+                 BMI ~ "BMI (kg/m²)",
+                 总收入 ~ "收入 (元)",
+                 性别 ~ "性别",
+                 城乡 ~ "城乡",
+                 婚姻 ~ "婚姻状况",
+                 饮酒 ~ "饮酒",
+                 吸烟 ~ "吸烟",
+                 医疗保险 ~ "医疗保险",
+                 教育 ~ "教育程度",
+                 sleep_group ~ "睡眠时长分组",
+                 age_group ~ "年龄分组",
+                 bmi_group ~ "BMI分组",
+                 income_group ~ "收入分组")
+  ) %>%
+  add_overall() %>%
+  add_p()
+
+table1   
+
+# ============================================================================
+# 9. 可视化部分
+# ============================================================================
+# ---- 设置统一主题 ----
+theme_set(theme_bw() +
+            theme(plot.title = element_text(hjust = 0.5, size = 14),
+                  axis.text = element_text(size = 10),
+                  legend.position = "bottom"))
+
+# ---- 9.1 连续变量按高血压分组的箱线图（4合1） ----
+p1 <- ggplot(data_new, aes(x = 高血压, y = 年龄, fill = 高血压)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = "年龄分布", x = "", y = "年龄 (岁)") +
+  theme(legend.position = "none")
+
+p2 <- ggplot(data_new, aes(x = 高血压, y = 睡眠时间, fill = 高血压)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = "睡眠时长分布", x = "", y = "睡眠时长 (小时)") +
+  theme(legend.position = "none")
+
+p3 <- ggplot(data_new, aes(x = 高血压, y = BMI, fill = 高血压)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = "BMI分布", x = "", y = "BMI (kg/m²)") +
+  theme(legend.position = "none")
+
+p4 <- ggplot(data_new, aes(x = 高血压, y = 总收入, fill = 高血压)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = "收入分布", x = "", y = "收入 (元)") +
+  scale_y_continuous(labels = scales::comma) +
+  theme(legend.position = "none")
+
+combined_cont <- (p1 + p2) / (p3 + p4) +
+  plot_annotation(title = "连续变量按高血压分组箱线图") &
+  theme(plot.title = element_text(hjust = 0.5))
+
+print(combined_cont)
+ggsave("连续变量箱线图.png", width = 10, height = 8, dpi = 300)
+
+# ---- 9.2 分类变量堆叠条形图（性别、城乡、饮酒、吸烟） ----
+cat_var_list <- c("性别", "城乡", "饮酒", "吸烟")
+plot_list <- list()
+for (i in seq_along(cat_var_list)) {
+  var <- cat_var_list[i]
+  p <- ggplot(data_new, aes(x = .data[[var]], fill = 高血压)) +
+    geom_bar(position = "fill") +
+    labs(y = "比例", x = var, title = paste(var, "构成")) +
+    scale_y_continuous(labels = scales::percent) +
+    theme(axis.text.x = element_text(angle = 0))
+  plot_list[[i]] <- p
+}
+# 组合显示
+combined_cont <- (plot_list[[1]] + plot_list[[2]]) / (plot_list[[3]] + plot_list[[4]])
+ggsave("分类变量堆叠图.png", width = 10, height = 8, dpi = 300)
+
+# ---- 9.3 睡眠时长分组的高血压患病率（带误差条） ----
+sleep_prop <- data_new %>%
+  group_by(sleep_group) %>%
+  summarise(n = n(),
+            hypertension_prop = mean(高血压 == "高血压"),
+            se = sqrt(hypertension_prop * (1 - hypertension_prop) / n)) %>%
+  mutate(sleep_group = factor(sleep_group,
+                              levels = c("<6h", "6~<7h", "7~<8h", "8~<9h", "≥9h")))
+
+p_sleep <- ggplot(sleep_prop, aes(x = sleep_group, y = hypertension_prop,
+                                  fill = sleep_group)) +
+  geom_col(alpha = 0.7) +
+  geom_errorbar(aes(ymin = hypertension_prop - se,
+                    ymax = hypertension_prop + se),
+                width = 0.2) +
+  labs(title = "不同睡眠时长分组的高血压患病率",
+       x = "睡眠时长分组", y = "高血压患病率") +
+  scale_y_continuous(labels = scales::percent) +
+  theme(legend.position = "none") +
+  geom_text(aes(label = paste0(round(hypertension_prop * 100, 1), "%")),
+            vjust = -0.5, size = 3.5)
+
+print(p_sleep)
+ggsave("睡眠分组患病率.png", width = 6, height = 5, dpi = 300)
+
+# ---- 9.4 BMI分组的高血压患病率（带误差条） ----
+bmi_prop <- data_new %>%
+  group_by(bmi_group) %>%
+  summarise(n = n(),
+            hypertension_prop = mean(高血压 == "高血压"),
+            se = sqrt(hypertension_prop * (1 - hypertension_prop) / n)) %>%
+  mutate(bmi_group = factor(bmi_group,
+                            levels = c("<18.5 (偏瘦)", "18.5~<24 (正常)",
+                                       "24~<28 (超重)", "≥28 (肥胖)")))
+
+p_bmi <- ggplot(bmi_prop, aes(x = bmi_group, y = hypertension_prop,
+                              fill = bmi_group)) +
+  geom_col(alpha = 0.7) +
+  geom_errorbar(aes(ymin = hypertension_prop - se,
+                    ymax = hypertension_prop + se),
+                width = 0.2) +
+  labs(title = "不同BMI分组的高血压患病率",
+       x = "BMI分组", y = "高血压患病率") +
+  scale_y_continuous(labels = scales::percent) +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 15, hjust = 1)) +
+  geom_text(aes(label = paste0(round(hypertension_prop * 100, 1), "%")),
+            vjust = -0.5, size = 3.5)
+
+print(p_bmi)
+ggsave("BMI分组患病率.png", width = 6, height = 5, dpi = 300)
+
+# ============================================================================
+# 10. 按睡眠时长分组比较组间差异
+# ============================================================================
+
+# 确保因子，7~<8h 在前（作为参照）
+data_new$sleep_group <- factor(data_new$sleep_group, 
+                               levels = c("7~<8h", "<6h", "6~<7h", "8~<9h", "≥9h"))
+
+# ---- 10.1 分类变量：卡方检验 ----
+# 查看高血压患病率在不同睡眠组的分布
+hypertension_table <- table(data_new$sleep_group, data_new$高血压)
+print("高血压患病率列联表：")
+print(hypertension_table)
+
+# 计算各睡眠组的高血压患病率（百分比）
+hypertension_prop <- prop.table(hypertension_table, margin = 1)
+print("各睡眠组高血压患病率：")
+print(hypertension_prop)
+
+# 卡方检验：检验睡眠分组与高血压是否独立
+chisq_test_hypertension <- chisq.test(hypertension_table)
+print("卡方检验结果：")
+print(chisq_test_hypertension)
+
+#同时看其他分类变量（如性别、吸烟）在睡眠组间的分布批量做：
+cat_vars_to_test <- c("性别", "吸烟", "饮酒", "城乡")
+for (var in cat_vars_to_test) {
+  cat("\n--- ", var, " 与睡眠分组的卡方检验 ---\n")
+  tbl <- table(data_new$sleep_group, data_new[[var]])
+  print(chisq.test(tbl))
+}
+
+# ---- 10.2 连续变量：单因素 ANOVA ----
+# 年龄
+anova_age <- aov(年龄 ~ sleep_group, data = data_new)
+summary(anova_age)
+
+# BMI
+anova_bmi <- aov(BMI ~ sleep_group, data = data_new)
+summary(anova_bmi)
+
+# 总收入
+anova_income <- aov(总收入 ~ sleep_group, data = data_new)
+summary(anova_income)
+
+# ---- 10.3 如果 ANOVA 显著，做两两比较 ----
+TukeyHSD(anova_age)
+TukeyHSD(anova_bmi)
+TukeyHSD(anova_income)
+
+# ---- 10.4 组间比较表格 ----
+library(gtsummary)
+
+# 挑选关键变量，按睡眠分组汇总
+compare_table <- data_new %>%
+  select(sleep_group, 高血压, 年龄, BMI, 总收入, 性别, 吸烟, 饮酒, 城乡) %>%
+  tbl_summary(
+    by = sleep_group,
+    statistic = list(all_continuous() ~ "{mean} ± {sd}",
+                     all_categorical() ~ "{n} ({p}%)"),
+    digits = all_continuous() ~ 1,
+    label = list(高血压 ~ "高血压患病率",
+                 年龄 ~ "年龄 (岁)",
+                 BMI ~ "BMI (kg/m²)",
+                 总收入 ~ "收入 (元)",
+                 性别 ~ "性别",
+                 吸烟 ~ "吸烟",
+                 饮酒 ~ "饮酒",
+                 城乡 ~ "城乡")
+  ) %>%
+  add_p() 
+compare_table
+
+# ============================================================================
+# 11. 单因素 Logistic 回归
+# ============================================================================
+
+library(gtsummary)
+
+# 定义要纳入单因素分析的变量列表
+uvars <- c("睡眠时间", "sleep_group", "年龄", "性别", "城乡", "婚姻", 
+           "教育", "饮酒", "吸烟", "BMI", "bmi_group", "总收入", "income_group", "医疗保险")
+
+# 执行单因素回归
+uv_table <- data_new %>%
+  select(高血压, all_of(uvars)) %>%
+  tbl_uvregression(
+    method = glm,
+    y = 高血压,
+    method.args = list(family = binomial),
+    exponentiate = TRUE,  
+    pvalue_fun = function(x) style_pvalue(x, digits = 3)
+  )
+
+# 打印单因素表格
+uv_table
+
+# ============================================================================
+# 12. 多因素 Logistic 回归
+# ============================================================================
+
+# ---- 12.1 构建4个嵌套模型 ----
+# 模型1：粗模型（仅睡眠分组）
+fit1 <- glm(高血压 ~ sleep_group, data = data_new, family = binomial)
+
+# 模型2：+ 人口学变量
+fit2 <- glm(高血压 ~ sleep_group + 年龄 + 性别 + 城乡 + 教育, 
+            data = data_new, family = binomial)
+
+# 模型3：+ 生活方式变量
+fit3 <- glm(高血压 ~ sleep_group + 年龄 + 性别 + 城乡 + 教育 + 吸烟 + 饮酒 + BMI, 
+            data = data_new, family = binomial)
+
+# 模型4：全模型（+ 社会经济变量）
+fit4 <- glm(高血压 ~ sleep_group + 年龄 + 性别 + 城乡 + 教育 + 吸烟 + 饮酒 + BMI + 
+              总收入 + 医疗保险 + 婚姻, 
+            data = data_new, family = binomial)
+
+# ---- 12.2 将4个模型的睡眠分组结果合并成一个表格 ----
+tbl_multi <- tbl_merge(
+  tbls = list(
+    tbl_regression(fit1, exponentiate = TRUE, label = list(sleep_group ~ "睡眠时长分组")),
+    tbl_regression(fit2, exponentiate = TRUE, label = list(sleep_group ~ "睡眠时长分组")),
+    tbl_regression(fit3, exponentiate = TRUE, label = list(sleep_group ~ "睡眠时长分组")),
+    tbl_regression(fit4, exponentiate = TRUE, label = list(sleep_group ~ "睡眠时长分组"))
+  ),
+  tab_spanner = c("**模型1 (粗模型)**", "**模型2 (+人口学)**", 
+                  "**模型3 (+生活方式)**", "**模型4 (全模型)**")
+)
+
+# 打印合并后的多因素表格
+tbl_multi
+
+# ============================================================================
+# 13. 模型比较与诊断
+# ============================================================================
+
+# ---- 13.1 似然比检验----
+anova(fit1, fit2, fit3, fit4, test = "LRT")
+
+# ---- 13.2 共线性诊断----
+library(car)
+
+# 对全模型进行 VIF 检验
+vif(fit4)
+
+# ============================================================================
+# 14. 限制性立方样条（RCS）—— 剂量-反应关系分析
+# ============================================================================
+
+# ---- 14.1 加载包 ----
+library(rms)      
+library(ggplot2)  
+
+# ---- 14.2 检查数据框和变量 ----
+# 确保所有分类变量都是因子
+factor_vars <- c("性别", "城乡", "教育", "吸烟", "饮酒", "医疗保险", "婚姻")
+for (var in factor_vars) {
+  if (var %in% names(data_new) && !is.factor(data_new[[var]])) {
+    data_new[[var]] <- as.factor(data_new[[var]])
+  }
+}
+
+# 输出各因子水平
+cat("=== 各分类变量水平 ===\n")
+for (var in factor_vars) {
+  if (var %in% names(data_new) && is.factor(data_new[[var]])) {
+    cat(var, ":", paste(levels(data_new[[var]]), collapse = " | "), "\n")
+  }
+}
+
+# ---- 14.3 定义节点 ----
+# 使用 4 个节点：第 5、35、65、95 百分位
+knots <- quantile(data_new$睡眠时间, probs = c(0.05, 0.35, 0.65, 0.95), na.rm = TRUE)
+cat("节点位置：", round(knots, 2))
+
+# ---- 4. 拟合 RCS 模型----
+rcs_glm <- glm(
+  高血压 ~ rcs(睡眠时间, knots) + 年龄 + 性别 + 城乡 + 教育 + 吸烟 + 饮酒 + BMI + 
+    总收入 + 医疗保险 + 婚姻,
+  data = data_new,
+  family = binomial
+)
+
+# ---- 5. 非线性趋势检验 ----
+linear_glm <- glm(
+  高血压 ~ 睡眠时间 + 年龄 + 性别 + 城乡 + 教育 + 吸烟 + 饮酒 + BMI + 
+    总收入 + 医疗保险 + 婚姻,
+  data = data_new,
+  family = binomial
+)
+lrt_result <- anova(linear_glm, rcs_glm, test = "LRT")
+cat("=== 非线性趋势检验（似然比检验） ===\n")
+print(lrt_result)
+# 提取 P 值
+p_nonlinear <- lrt_result[["Pr(>Chi)"]][2]
+cat("\n非线性检验 P 值：", p_nonlinear, "\n")
+if (!is.na(p_nonlinear) && p_nonlinear < 0.05) {
+  cat("结论：睡眠时长与高血压存在显著的非线性关系（U型或J型）。\n\n")
+} else {
+  cat("结论：未检测到显著的非线性关系，可能为线性趋势。\n\n")
+}
+
+# ---- 6. 构建预测数据框 ----
+# 生成睡眠时间序列
+sleep_seq <- seq(2, 14, by = 0.1)
+
+# 预测数据框：所有分类变量取第一个水平（即参照组），连续变量取中位数
+pred_data <- expand.grid(
+  睡眠时间 = sleep_seq,
+  年龄 = median(data_new$年龄, na.rm = TRUE),
+  性别 = levels(data_new$性别)[1],
+  城乡 = levels(data_new$城乡)[1],
+  教育 = 1,  
+  吸烟 = levels(data_new$吸烟)[1],
+  饮酒 = levels(data_new$饮酒)[1],
+  BMI = median(data_new$BMI, na.rm = TRUE),
+  总收入 = median(data_new$总收入, na.rm = TRUE),
+  医疗保险 = levels(data_new$医疗保险)[1],
+  婚姻 = 1
+)
+
+# 强制转换因子列，确保与模型中的因子水平一致
+for (var in c("性别", "城乡", "吸烟", "饮酒", "医疗保险")) {
+  if (var %in% names(pred_data) && is.factor(data_new[[var]])) {
+    pred_data[[var]] <- factor(pred_data[[var]], levels = levels(data_new[[var]]))
+  }
+}
+
+if ("教育" %in% names(pred_data) && is.factor(data_new$教育)) {
+  pred_data$教育 <- factor(pred_data$教育, levels = levels(data_new$教育))
+}
+if ("婚姻" %in% names(pred_data) && is.factor(data_new$婚姻)) {
+  pred_data$婚姻 <- factor(pred_data$婚姻, levels = levels(data_new$婚姻))
+}
+
+# ---- 7. 预测 log-OR ----
+pred <- predict(rcs_glm, newdata = pred_data, se.fit = TRUE)
+log_or <- pred$fit
+se_log_or <- pred$se.fit
+
+# ---- 8. 以 7 小时为参照，计算相对 OR ----
+ref_idx <- which.min(abs(pred_data$睡眠时间 - 7))
+log_or_ref <- log_or[ref_idx]  # 7 小时的 log-OR（相对于截距）
+
+# 计算相对 OR 和 95% CI
+or_rel <- exp(log_or - log_or_ref)
+or_rel_lower <- exp(log_or - log_or_ref - 1.96 * se_log_or)
+or_rel_upper <- exp(log_or - log_or_ref + 1.96 * se_log_or)
+
+plot_data <- data.frame(
+  睡眠时间 = sleep_seq,
+  OR = or_rel,
+  OR_lower = or_rel_lower,
+  OR_upper = or_rel_upper
+)
+
+# ---- 9. 查看预测结果 ----
+cat("=== 预测结果（以7小时为参照） ===\n")
+print(head(plot_data, 10))
+
+# ---- 10. 找出最低风险点----
+ref_point <- plot_data$睡眠时间[which.min(abs(plot_data$OR - 1))]
+cat("\n最低风险点（OR≈1）对应的睡眠时长：", round(ref_point, 2), "小时\n")
+
+# ---- 11. 绘制 RCS 曲线 ----
+p_rcs <- ggplot(plot_data, aes(x = 睡眠时间, y = OR)) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "gray50") +
+  geom_ribbon(aes(ymin = OR_lower, ymax = OR_upper), 
+              alpha = 0.2, fill = "steelblue") +
+  geom_line(color = "steelblue", linewidth = 1.2) +
+  geom_vline(xintercept = ref_point, linetype = "dotted", 
+             color = "red", linewidth = 0.8) +
+  geom_vline(xintercept = 7, linetype = "dashed", 
+             color = "darkgreen", linewidth = 0.6) +
+  annotate("text", x = ref_point + 0.5, y = 1.05,
+           label = paste("最低风险点\n", round(ref_point, 2), "h"), 
+           color = "red", size = 3.5) +
+  annotate("text", x = 7.5, y = 0.95,
+           label = "参照 7h", color = "darkgreen", size = 3) +
+  labs(title = "睡眠时长与高血压患病风险的剂量-反应关系（以7小时为参照）",
+       x = "夜间睡眠时长 (小时)", y = "OR (95% CI)") +
+  scale_x_continuous(breaks = seq(2, 14, 2)) +
+  coord_cartesian(ylim = c(0.5, 1.8)) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 10))
+
+# 显示图形
+print(p_rcs)
+
+# ---- 12. 保存图形 ----
+ggsave("14_RCS_曲线_以7小时为参照.png", plot = p_rcs, width = 8, height = 6, dpi = 300)
+
+# ============================================================================
+# 15. 亚组分析与交互效应检验
+# ============================================================================
+
+# ---- 0. 加载包 ----
+library(dplyr)
+library(ggplot2)
+library(broom)    
+library(tidyr)    
+
+# ---- 1. 准备分层变量（确保是因子，且无缺失） ----
+# 年龄二分类（50-64岁 / ≥65岁）
+data_new$age_group2 <- ifelse(data_new$年龄 < 65, "50-64岁", "≥65岁")
+data_new$age_group2 <- factor(data_new$age_group2, levels = c("50-64岁", "≥65岁"))
+
+# BMI 三分类（正常 <24 / 超重 24~28 / 肥胖 ≥28）
+data_new$bmi_group3 <- cut(data_new$BMI,
+                           breaks = c(-Inf, 24, 28, Inf),
+                           labels = c("正常 (<24)", "超重 (24~28)", "肥胖 (≥28)"),
+                           right = FALSE)
+
+
+# ---- 2. 定义全模型公式（用连续睡眠时间） ----
+full_formula_cont <- as.formula(
+  高血压 ~ 睡眠时间 + 年龄 + 性别 + 城乡 + 教育 + 吸烟 + 饮酒 + BMI + 
+    总收入 + 医疗保险 + 婚姻
+)
+
+# ---- 3. 亚组分析：分别在每个亚组中拟合全模型 ----
+# 定义亚组列表
+subgroup_defs <- list(
+  "性别_男" = list(data = data_new[data_new$性别 == "男", ], 
+                drop_vars = c("性别")),
+  "性别_女" = list(data = data_new[data_new$性别 == "女", ], 
+                drop_vars = c("性别")),
+  "年龄_50-64岁" = list(data = data_new[data_new$age_group2 == "50-64岁", ], 
+                     drop_vars = c("age_group2")),
+  "年龄_≥65岁" = list(data = data_new[data_new$age_group2 == "≥65岁", ], 
+                   drop_vars = c("age_group2")),
+  "BMI_正常" = list(data = data_new[data_new$bmi_group3 == "正常 (<24)", ], 
+                  drop_vars = c("bmi_group3")),
+  "BMI_超重" = list(data = data_new[data_new$bmi_group3 == "超重 (24~28)", ], 
+                  drop_vars = c("bmi_group3")),
+  "BMI_肥胖" = list(data = data_new[data_new$bmi_group3 == "肥胖 (≥28)", ], 
+                  drop_vars = c("bmi_group3")),
+  "城乡_农村" = list(data = data_new[data_new$城乡 == "农村", ], 
+                 drop_vars = c("城乡")),
+  "城乡_城镇" = list(data = data_new[data_new$城乡 == "城镇", ], 
+                 drop_vars = c("城乡"))
+)
+
+# 存储结果
+subgroup_results <- list()
+
+for (name in names(subgroup_defs)) {
+  sub_data <- subgroup_defs[[name]]$data
+  drop_vars <- subgroup_defs[[name]]$drop_vars
+  
+  # 跳过样本量太小的亚组
+  if (nrow(sub_data) < 50) {
+    cat("跳过亚组：", name, "，样本量仅", nrow(sub_data), "\n")
+    next
+  }
+  
+  vars_in_formula <- all.vars(full_formula_cont)
+  vars_to_keep <- vars_in_formula[!vars_in_formula %in% drop_vars]
+  formula_sub <- as.formula(paste("高血压 ~", paste(vars_to_keep, collapse = " + ")))
+  
+  # 拟合模型
+  fit_sub <- tryCatch({
+    glm(formula_sub, data = sub_data, family = binomial)
+  }, error = function(e) {
+    cat("亚组", name, "拟合失败：", e$message, "\n")
+    return(NULL)
+  })
+  
+  if (is.null(fit_sub)) next
+  
+  # 提取睡眠时间的 OR 和 CI
+  coef_summary <- summary(fit_sub)$coefficients
+  if (!"睡眠时间" %in% rownames(coef_summary)) {
+    cat("亚组", name, "中未找到睡眠时间变量\n")
+    next
+  }
+  
+  beta <- coef_summary["睡眠时间", "Estimate"]
+  se <- coef_summary["睡眠时间", "Std. Error"]
+  p_val <- coef_summary["睡眠时间", "Pr(>|z|)"]
+  or <- exp(beta)
+  or_lower <- exp(beta - 1.96 * se)
+  or_upper <- exp(beta + 1.96 * se)
+  
+  subgroup_results[[name]] <- data.frame(
+    亚组 = name,
+    N = nrow(sub_data),
+    OR = or,
+    OR_lower = or_lower,
+    OR_upper = or_upper,
+    P_value = p_val
+  )
+}
+
+# 合并所有亚组结果
+subgroup_df <- do.call(rbind, subgroup_results)
+# 按亚组类型提取分组名称（用于排序）
+subgroup_df$亚组类型 <- gsub("_.*", "", subgroup_df$亚组)
+subgroup_df$亚组标签 <- gsub(".*_", "", subgroup_df$亚组)
+
+cat("\n=== 亚组分析结果 ===\n")
+print(subgroup_df)
+
+# 保存为 CSV
+write.csv(subgroup_df, "15_亚组分析结果_连续睡眠.csv", row.names = FALSE)
+
+# ---- 4. 交互效应检验（使用似然比检验） ----
+# 基础模型：不含交互项（全模型）
+base_model <- glm(full_formula_cont, data = data_new, family = binomial)
+
+# 4.1 性别 × 睡眠时间
+interact_gender <- glm(
+  高血压 ~ 睡眠时间 * 性别 + 年龄 + 城乡 + 教育 + 吸烟 + 饮酒 + BMI + 
+    总收入 + 医疗保险 + 婚姻,
+  data = data_new, family = binomial
+)
+p_gender <- anova(base_model, interact_gender, test = "LRT")$`Pr(>Chi)`[2]
+
+# 4.2 年龄组 × 睡眠时间
+interact_age <- glm(
+  高血压 ~ 睡眠时间 * age_group2 + 年龄 + 性别 + 城乡 + 教育 + 吸烟 + 饮酒 + BMI + 
+    总收入 + 医疗保险 + 婚姻,
+  data = data_new, family = binomial
+)
+p_age <- anova(base_model, interact_age, test = "LRT")$`Pr(>Chi)`[2]
+
+# 4.3 BMI分组 × 睡眠时间
+interact_bmi <- glm(
+  高血压 ~ 睡眠时间 * bmi_group3 + 年龄 + 性别 + 城乡 + 教育 + 吸烟 + 饮酒 + BMI + 
+    总收入 + 医疗保险 + 婚姻,
+  data = data_new, family = binomial
+)
+p_bmi <- anova(base_model, interact_bmi, test = "LRT")$`Pr(>Chi)`[2]
+
+# 4.4 城乡 × 睡眠时间
+interact_urban <- glm(
+  高血压 ~ 睡眠时间 * 城乡 + 年龄 + 性别 + 教育 + 吸烟 + 饮酒 + BMI + 
+    总收入 + 医疗保险 + 婚姻,
+  data = data_new, family = binomial
+)
+p_urban <- anova(base_model, interact_urban, test = "LRT")$`Pr(>Chi)`[2]
+
+# 汇总交互 P 值
+interaction_df <- data.frame(
+  分层变量 = c("性别", "年龄组 (50-64 vs ≥65)", "BMI分组", "城乡"),
+  P_for_interaction = c(p_gender, p_age, p_bmi, p_urban)
+)
+
+cat("\n=== 交互效应检验（P for interaction） ===\n")
+print(interaction_df)
+
+write.csv(interaction_df, "15_交互效应P值.csv", row.names = FALSE)
+# ---- 5. 绘制森林图 ----
+# 整理数据，按亚组类型分组显示
+forest_data <- subgroup_df %>%
+  mutate(
+    亚组显示名 = paste(亚组类型, 亚组标签, sep = ": "),
+    # 按亚组类型排序
+    亚组类型 = factor(亚组类型, levels = c("性别", "年龄", "BMI", "城乡"))
+  ) %>%
+  arrange(亚组类型, 亚组标签)
+
+# 绘制森林图
+p_forest <- ggplot(forest_data, aes(x = 亚组显示名, y = OR)) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "gray50") +
+  geom_point(size = 3, color = "steelblue") +
+  geom_errorbar(aes(ymin = OR_lower, ymax = OR_upper), width = 0.2, color = "steelblue") +
+  coord_flip() +  # 翻转坐标，让亚组名称在纵轴
+  scale_y_log10(breaks = c(0.5, 0.8, 1.0, 1.2, 1.5, 2.0)) +
+  labs(title = "睡眠时长与高血压关联的亚组分析",
+       x = "", y = "OR (95% CI) 每增加1小时睡眠",
+       caption = paste0(
+         "交互作用 P 值：性别 ", round(p_gender, 3),
+         " | 年龄 ", round(p_age, 3),
+         " | BMI ", round(p_bmi, 3),
+         " | 城乡 ", round(p_urban, 3)
+       )) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        axis.text.y = element_text(size = 10),
+        axis.text.x = element_text(size = 10),
+        plot.caption = element_text(hjust = 0, size = 9))
+
+print(p_forest)
+ggsave("15_亚组分析森林图.png", plot = p_forest, width = 8, height = 6, dpi = 300)
+
+
+
+library(rms)
+library(ggplot2)
+
+# ---- 女性子集 ----
+data_f <- data_new[data_new$性别 == "女", ]
+dd_f <- datadist(data_f); options(datadist = "dd_f")
+knots_f <- quantile(data_f$睡眠时间, probs = c(0.05, 0.35, 0.65, 0.95), na.rm = TRUE)
+rcs_f <- lrm(高血压 ~ rcs(睡眠时间, knots_f) + 年龄 + 城乡 + 教育 + 吸烟 + 饮酒 + BMI + 
+               总收入 + 医疗保险 + 婚姻, data = data_f, x = TRUE, y = TRUE)
+pred_f <- Predict(rcs_f, 睡眠时间 = seq(2, 14, 0.1), fun = exp)
+plot_f <- as.data.frame(pred_f)
+# 关键：强制转换为数值
+plot_f$OR <- as.numeric(plot_f$yhat)        # 或 as.numeric(plot_f$yhat)
+plot_f$lower <- as.numeric(plot_f$lower)
+plot_f$upper <- as.numeric(plot_f$upper)
+plot_f$性别 <- "女"
+
+# ---- 男性子集 ----
+data_m <- data_new[data_new$性别 == "男", ]
+dd_m <- datadist(data_m); options(datadist = "dd_m")
+knots_m <- quantile(data_m$睡眠时间, probs = c(0.05, 0.35, 0.65, 0.95), na.rm = TRUE)
+rcs_m <- lrm(高血压 ~ rcs(睡眠时间, knots_m) + 年龄 + 城乡 + 教育 + 吸烟 + 饮酒 + BMI + 
+               总收入 + 医疗保险 + 婚姻, data = data_m, x = TRUE, y = TRUE)
+pred_m <- Predict(rcs_m, 睡眠时间 = seq(2, 14, 0.1), fun = exp)
+plot_m <- as.data.frame(pred_m)
+plot_m$OR <- as.numeric(plot_m$yhat)
+plot_m$lower <- as.numeric(plot_m$lower)
+plot_m$upper <- as.numeric(plot_m$upper)
+plot_m$性别 <- "男"
+
+# ---- 合并并绘图 ----
+plot_both <- rbind(plot_f, plot_m)
+
+# 确保 OR 列是数值型（再检查一次）
+plot_both$OR <- as.numeric(plot_both$OR)
+
+p_gender_rcs <- ggplot(plot_both, aes(x = 睡眠时间, y = OR, color = 性别, fill = 性别)) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "gray50") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.15, color = NA) +
+  geom_line(linewidth = 1.2) +
+  facet_wrap(~性别) +
+  labs(title = "按性别分层的睡眠-高血压剂量反应关系",
+       x = "夜间睡眠时长 (小时)", y = "OR (95% CI)") +
+  scale_y_log10(breaks = c(0.6, 0.8, 1.0, 1.2, 1.4)) +
+  theme_bw() +
+  theme(legend.position = "none", strip.text = element_text(size = 12))
+
+print(p_gender_rcs)
+ggsave("补充图_性别分层RCS.png", p_gender_rcs, width = 8, height = 5, dpi = 300)
+
+
+
+# ============================================================================
+# 补充分析：全模型所有协变量的森林图
+# 目的：展示每个混杂因素对高血压的独立贡献（OR及95%CI）
+# ============================================================================
+
+library(gtsummary)
+library(ggplot2)
+library(broom)
+# 拟合连续睡眠时间的全模型（与分组模型相同的协变量）
+fit4_cont <- glm(高血压 ~ 睡眠时间 + 年龄 + 性别 + 城乡 + 教育 + 吸烟 + 饮酒 + BMI + 
+                   总收入 + 医疗保险 + 婚姻,
+                 data = data_new, family = binomial)
+# 提取全模型（fit4_cont）的系数并转为数据框
+tidy_fit <- tidy(fit4_cont, conf.int = TRUE, exponentiate = TRUE)  # exponentiate=TRUE 直接得到OR
+
+# 过滤掉截距（Intercept）
+tidy_fit <- tidy_fit[tidy_fit$term != "(Intercept)", ]
+
+# 清理变量名（把英文变量名改成中文标签）
+var_labels <- c(
+  "睡眠时间" = "睡眠时长 (每+1h)",
+  "年龄" = "年龄 (每+1岁)",
+  "性别男" = "性别 (男 vs 女)",
+  "城乡城镇" = "居住地 (城镇 vs 农村)",
+  "教育2" = "教育 (初中 vs 小学)",
+  "教育3" = "教育 (高中 vs 小学)",
+  "教育4" = "教育 (大专及以上 vs 小学)",
+  "吸烟是" = "吸烟 (是 vs 否)",
+  "饮酒是" = "饮酒 (是 vs 否)",
+  "BMI" = "BMI (每+1 kg/m²)",
+  "总收入" = "总收入 (每+1元)",
+  "医疗保险是" = "医疗保险 (有 vs 无)",
+  "婚姻2" = "婚姻 (2 vs 1)",
+  "婚姻4" = "婚姻 (4 vs 1)",
+  "婚姻5" = "婚姻 (5 vs 1)",
+  "婚姻7" = "婚姻 (7 vs 1)",
+  "婚姻8" = "婚姻 (8 vs 1)"
+)
+
+# 匹配标签，如果没匹配上就保留原变量名
+tidy_fit$term_label <- ifelse(tidy_fit$term %in% names(var_labels), 
+                              var_labels[tidy_fit$term], 
+                              tidy_fit$term)
+
+# 按OR值排序（让图形从上到下依次是从强到弱）
+tidy_fit <- tidy_fit[order(tidy_fit$estimate), ]
+
+# 绘制森林图
+p_covariates <- ggplot(tidy_fit, aes(x = estimate, y = reorder(term_label, estimate))) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "gray50") +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), 
+                width = 0.2, color = "steelblue", orientation = "y") +  # 关键改动
+  geom_point(size = 3, color = "steelblue") +
+  scale_x_log10(breaks = c(0.5, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0)) +
+  labs(title = "高血压相关因素的多元Logistic回归森林图",
+       x = "OR (95% CI)", y = "") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        axis.text.y = element_text(size = 10))
+
+print(p_covariates)
+ggsave("补充图_协变量森林图_修正.png", p_covariates, width = 8, height = 6, dpi = 300)
+
+# ============================================================================
+# 补充分析：BMI 与高血压的 RCS 剂量反应曲线（阳性对照）
+# ============================================================================
+
+# ============================================================================
+# BMI 与高血压的 RCS 剂量反应曲线（阳性对照，用 glm + rcs）
+# ============================================================================
+
+# ============================================================================
+# BMI 与高血压的 RCS 剂量反应曲线（阳性对照，用 glm + rcs，修正因子问题）
+# ============================================================================
+
+library(rms)   # 只需要 rcs() 函数
+library(ggplot2)
+
+# ---- 1. 确保教育、婚姻是因子（如果之前没转，这里转） ----
+if (!is.factor(data_new$教育)) data_new$教育 <- as.factor(data_new$教育)
+if (!is.factor(data_new$婚姻)) data_new$婚姻 <- as.factor(data_new$婚姻)
+
+# ---- 2. 定义 BMI 节点（5个节点） ----
+knots_bmi <- quantile(data_new$BMI, probs = c(0.05, 0.25, 0.50, 0.75, 0.95), na.rm = TRUE)
+cat("BMI节点：", round(knots_bmi, 2), "\n")
+
+# ---- 3. 拟合 glm 模型（含 rcs 样条） ----
+rcs_bmi_glm <- glm(
+  高血压 ~ rcs(BMI, knots_bmi) + 年龄 + 性别 + 城乡 + 教育 + 吸烟 + 饮酒 + BMI + 
+    总收入 + 医疗保险 + 婚姻,
+  data = data_new,
+  family = binomial
+)
+
+# ---- 4. 非线性检验（可选） ----
+linear_bmi_glm <- glm(
+  高血压 ~ BMI + 年龄 + 性别 + 城乡 + 教育 + 吸烟 + 饮酒 + BMI + 
+    总收入 + 医疗保险 + 婚姻,
+  data = data_new,
+  family = binomial
+)
+lrt_bmi <- anova(linear_bmi_glm, rcs_bmi_glm, test = "LRT")
+cat("\n=== BMI 非线性检验 ===\n")
+print(lrt_bmi)
+
+# ---- 5. 构建预测数据框（关键修改） ----
+bmi_seq <- seq(15, 40, by = 0.5)
+
+# 提取各因子变量的第一个水平（参照组）
+ref_gender <- levels(data_new$性别)[1]
+ref_urban <- levels(data_new$城乡)[1]
+ref_edu <- levels(data_new$教育)[1]
+ref_smoke <- levels(data_new$吸烟)[1]
+ref_drink <- levels(data_new$饮酒)[1]
+ref_insure <- levels(data_new$医疗保险)[1]
+ref_marriage <- levels(data_new$婚姻)[1]
+
+pred_data_bmi <- expand.grid(
+  BMI = bmi_seq,
+  年龄 = median(data_new$年龄, na.rm = TRUE),
+  性别 = ref_gender,
+  城乡 = ref_urban,
+  教育 = ref_edu,
+  吸烟 = ref_smoke,
+  饮酒 = ref_drink,
+  总收入 = median(data_new$总收入, na.rm = TRUE),
+  医疗保险 = ref_insure,
+  婚姻 = ref_marriage,
+  睡眠时间 = median(data_new$睡眠时间, na.rm = TRUE)  # 模型中也包含睡眠时间
+)
+
+# 强制所有因子列与模型中的因子水平一致
+for (var in c("性别", "城乡", "教育", "吸烟", "饮酒", "医疗保险", "婚姻")) {
+  if (var %in% names(pred_data_bmi)) {
+    pred_data_bmi[[var]] <- factor(pred_data_bmi[[var]], levels = levels(data_new[[var]]))
+  }
+}
+
+# ---- 6. 预测 log-OR ----
+pred <- predict(rcs_bmi_glm, newdata = pred_data_bmi, se.fit = TRUE)
+log_or <- pred$fit
+se <- pred$se.fit
+
+# ---- 7. 以 BMI = 22 为参照 ----
+ref_idx <- which.min(abs(pred_data_bmi$BMI - 22))
+log_or_ref <- log_or[ref_idx]
+or_rel <- exp(log_or - log_or_ref)
+lower <- exp(log_or - log_or_ref - 1.96 * se)
+upper <- exp(log_or - log_or_ref + 1.96 * se)
+
+plot_data_bmi <- data.frame(
+  BMI = bmi_seq,
+  OR = or_rel,
+  lower = lower,
+  upper = upper
+)
+
+# 过滤掉异常值（防止绘图警告）
+plot_data_bmi_clean <- plot_data_bmi[plot_data_bmi$OR > 0 & 
+                                       plot_data_bmi$lower > 0 & 
+                                       plot_data_bmi$upper > 0, ]
+
+# ---- 8. 绘图 ----
+p_bmi <- ggplot(plot_data_bmi_clean, aes(x = BMI, y = OR)) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "gray50") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, fill = "darkred") +
+  geom_line(color = "darkred", linewidth = 1.2) +
+  geom_vline(xintercept = 18.5, linetype = "dotted", color = "blue") +
+  annotate("text", x = 19, y = 2.5, label = "正常下限 18.5", color = "blue", size = 3) +
+  labs(title = "BMI与高血压的剂量反应关系（以22为参照）",
+       x = "BMI (kg/m²)", y = "OR (95% CI)") +
+  scale_y_log10(breaks = c(0.5, 1.0, 2.0, 4.0)) +
+  coord_cartesian(ylim = c(0.5, 4.0)) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14))
+
+print(p_bmi)
+ggsave("补充图_BMI_RCS_阳性对照.png", p_bmi, width = 8, height = 5, dpi = 300)
+
+
+# ============================================================================
+# 相关性热图
+# ============================================================================
+
+library(corrplot)
+
+# 确保 num_vars 只包含数值列
+num_vars <- data.frame(
+  年龄 = data_new$年龄,
+  睡眠时间 = data_new$睡眠时间,
+  BMI = data_new$BMI,
+  总收入 = data_new$总收入,
+  高血压 = as.numeric(data_new$高血压 == "高血压")
+)
+
+# 计算 Spearman 相关系数
+cor_matrix <- cor(num_vars, method = "spearman", use = "complete.obs")
+
+# 绘制热图
+png("补充图_相关性热图.png", width = 800, height = 800, res = 120)
+corrplot(cor_matrix, 
+         method = "color", 
+         type = "upper", 
+         addCoef.col = "black", 
+         number.cex = 1.0,
+         tl.col = "black", 
+         tl.srt = 45,
+         title = "核心变量Spearman相关系数矩阵", 
+         mar = c(0, 0, 2, 0))
+dev.off()
