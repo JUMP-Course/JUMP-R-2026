@@ -1,0 +1,9 @@
+model,variable,OR,CI_low,CI_high,p_value
+Crude model,bmi_group_cleanUnderweight,0.99,0.56,1.67,0.9817
+Crude model,bmi_group_cleanOverweight,1.41,1.18,1.69,2e-4
+Crude model,bmi_group_cleanObesity,1.52,1.29,1.81,0
+Adjusted for age and sex,bmi_group_cleanUnderweight,1.49,0.8,2.66,0.1929
+Adjusted for age and sex,bmi_group_cleanOverweight,1.18,0.97,1.44,0.091
+Adjusted for age and sex,bmi_group_cleanObesity,1.49,1.24,1.79,0
+Adjusted for age and sex,age,1.06,1.05,1.06,0
+Adjusted for age and sex,sex_cleanMale,0.99,0.86,1.14,0.879

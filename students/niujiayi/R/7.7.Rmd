@@ -1,0 +1,363 @@
+---
+title: "成年女性饮酒频次与乳腺癌患病的相关性分析"
+author: "牛佳艺"
+date: "2026-07-07"
+output: html_document
+---
+
+```{r 全局配置, echo=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.align = "center",
+  fig.width = 9,
+  fig.height = 6,
+  warning = FALSE,
+  message = FALSE,
+  dpi = 300
+)
+```
+
+# 1 研究背景与研究目的
+## 1.1 研究背景
+   乳腺癌是危害女性健康最常见的恶性肿瘤之一，患者承担较重的治疗经济负担与身心损伤。生活方式相关危险因素是肿瘤一级预防的核心研究方向，饮酒对乳腺健康风险长期受到学界关注。
+   目前国内外相关研究结论存在分歧：部分长期队列研究证实大量饮酒会提升女性乳腺癌发病风险，也有横断面研究未观测到显著关联，这类差异可能来自研究人群划分、饮酒变量定义、混杂变量校正完整度等方面。
+  为进一步验证普通成年女性饮酒频次与乳腺肿瘤患病的关联，本研究采用美国 NHANES 2017-2020 全国代表性横断面数据库开展人群流行病学分析。该数据集公开完整、样本覆盖多个人口学分层，适合完成人群饮酒行为、体格指标、吸烟行为的多因素回归分析。在校正多类混杂因素后，探究饮酒频次与乳腺癌患病之间是否存在独立关联，为女性乳腺健康防控提供人群数据参考。
+
+## 1.2 研究目的
+   在校正年龄、种族、教育水平、家庭收入贫困比、BMI、吸烟状态等混杂变量后，分析 18 岁及以上成年女性饮酒频次与乳腺癌患病是否存在独立统计学关联；同时通过分层、敏感性分析验证结果稳定性，借助 ROC 曲线评价多因素模型区分患病状态的效果。
+
+# 2 数据来源与变量定义
+## 2.1 数据来源
+NHANES 2017–2020公共数据库，共读取5份XPT文件：
+- P_DEMO.xpt：人口学信息
+- P_ALQ.xpt：饮酒行为问卷
+- P_MCQ.xpt：肿瘤患病史问卷
+- P_BMX.xpt：体格测量BMI数据
+- P_SMQ.xpt：吸烟行为问卷
+分析第一步通过 SEQN 唯一编号，将 5 套数据集横向合并，形成完整总数据集。
+
+## 2.2 变量定义
+1. **结局变量 breast_cancer**
+   依托肿瘤病史问卷MCQ系列编码构建，问卷中7、77、9、99代表缺失/拒绝回答，统一赋值NA；自述确诊乳腺癌定义为病例组，无乳腺肿瘤病史为对照组。
+2. **暴露变量 drink_group**
+   根据近12个月饮酒频率划分4组：从不饮酒、少量饮酒、中等饮酒、频繁饮酒。
+   为验证结果稳定性，额外构建简化三分组变量drink_group_simple，将中等、频繁饮酒合并为高频饮酒，用于敏感性分析。
+3. **混杂协变量**
+   连续变量：年龄、家庭收入贫困比、BMI；
+   分类变量：种族、教育程度、吸烟状态；
+   分层变量：以50岁为分界，划分青年、中老年女性亚组。
+
+# 3 统计分析方法
+   1. 数据清洗：筛选18岁以上女性样本，剔除关键变量存在缺失的样本，得到最终数据集；
+   2. 基线特征描述：分类变量采用例数、构成比描述，连续变量采用中位数及四分位数；患病组与未患病组组间比较，分类资料使用卡方检验，连续资料使用Wilcoxon秩和检验；
+   3. Logistic回归模型：构建单因素粗模型、校正全部混杂的多因素模型、年龄分层模型；同时采用简化饮酒分组开展敏感性分析，输出OR值及95%置信区间；
+   4. 模型诊断：VIF方差膨胀因子判断多重共线性，Hosmer-Lemeshow检验评价模型拟合效果；
+   5. 可视化：绘制人群年龄分布、饮酒患病构成、BMI箱线图、回归森林图、模型ROC曲线；
+本次检验均采用双侧检验，检验水准α=0.05。
+
+# 4 R代码：包加载与数据读取合并
+```{r 加载分析包}
+#install.packages(c("tidyverse", "haven", "gtsummary", "flextable", 
+                  # "scales", "broom", "broom.helpers", "car", "ResourceSelection", "pROC"))
+library(tidyverse)       
+library(haven)           
+library(gtsummary)      
+library(scales)          
+library(flextable)       
+library(broom)          
+library(car)             
+library(ResourceSelection) 
+library(pROC)       
+```
+
+```{r 读取并合并NHANES原始数据}
+demo <- read_xpt("D:/JUMP-R-2026/students/niujiayi/tables/P_DEMO.xpt")
+alq  <- read_xpt("D:/JUMP-R-2026/students/niujiayi/tables/P_ALQ.xpt")
+mcq  <- read_xpt("D:/JUMP-R-2026/students/niujiayi/tables/P_MCQ.xpt")
+bmx  <- read_xpt("D:/JUMP-R-2026/students/niujiayi/tables/P_BMX.xpt")
+smq  <- read_xpt("D:/JUMP-R-2026/students/niujiayi/tables/P_SMQ.xpt")
+
+all_data <- demo %>%
+  left_join(alq, by = "SEQN") %>%
+  left_join(mcq, by = "SEQN") %>%
+  left_join(bmx, by = "SEQN") %>%
+  left_join(smq, by = "SEQN")
+
+cat("① 原始总样本量：", nrow(all_data), "人\n")
+```
+
+# 5 人群筛选、变量编码与清洗
+```{r 筛选成年女性人群}
+female <- all_data %>% 
+  filter(RIAGENDR == 2, RIDAGEYR >= 18)
+cat("② 筛选成年女性后样本量：", nrow(female), "人\n")
+```
+
+```{r 构建结局变量：乳腺癌患病状态}
+female <- female %>%
+  mutate(
+    MCQ220 = ifelse(MCQ220 %in% c(7, 9), NA, MCQ220),
+    MCQ230A = ifelse(MCQ230A %in% c(77, 99), NA, MCQ230A),
+    MCQ230B = ifelse(MCQ230B %in% c(77, 99), NA, MCQ230B),
+    MCQ230C = ifelse(MCQ230C %in% c(77, 99), NA, MCQ230C),
+    
+    breast_cancer = case_when(
+      MCQ220 == 2 ~ 0,
+      MCQ220 == 1 & (MCQ230A == 14 | MCQ230B == 14 | MCQ230C == 14) ~ 1,
+      MCQ220 == 1 & MCQ230A != 14 & MCQ230B != 14 & MCQ230C != 14 ~ 0,
+      TRUE ~ NA_real_
+    )
+  )
+cat("③ 乳腺癌信息完整样本：", sum(!is.na(female$breast_cancer)), "人\n")
+```
+
+```{r 暴露变量、混杂变量完整编码}
+female <- female %>%
+  mutate(
+    ALQ111 = ifelse(ALQ111 %in% c(7, 9), NA, ALQ111),
+    ALQ121 = ifelse(ALQ121 %in% c(77, 99), NA, ALQ121),
+    ALQ130 = ifelse(ALQ130 %in% c(777, 999), NA, ALQ130),
+    
+    drink_group = case_when(
+      ALQ111 == 2 ~ "从不饮酒",
+      ALQ121 == 0 ~ "从不饮酒",
+      ALQ121 %in% c(6,7,8,9,10) ~ "少量饮酒",
+      ALQ121 %in% c(3,4,5) ~ "中等饮酒",
+      ALQ121 %in% c(1,2) ~ "频繁饮酒",
+      TRUE ~ NA_character_
+    ) %>% factor(levels = c("从不饮酒", "少量饮酒", "中等饮酒", "频繁饮酒")),
+    
+    daily_drink_cups = case_when(drink_group == "从不饮酒" ~ 0, TRUE ~ as.numeric(ALQ130)),
+    # 敏感性分析简化3分组
+    drink_group_simple = case_when(
+      drink_group == "从不饮酒" ~ "从不饮酒",
+      drink_group == "少量饮酒" ~ "低频饮酒",
+      drink_group %in% c("中等饮酒", "频繁饮酒") ~ "高频饮酒"
+    ) %>% factor(levels = c("从不饮酒", "低频饮酒", "高频饮酒")),
+    drink_score = as.numeric(drink_group),
+    
+    # 种族
+    race = factor(ifelse(RIDRETH3 %in% c(7,9), NA, RIDRETH3),
+                  levels = c(3,1,2,4,6,7),
+                  labels = c("非西裔白人", "墨西哥裔", "其他西班牙裔", "非西裔黑人", "其他人种", "多种族")),
+    # 教育程度
+    education = factor(ifelse(DMDEDUC2 %in% c(7,9), NA, DMDEDUC2),
+                       levels = c(4,1,2,3,5),
+                       labels = c("本科", "初中及以下", "高中", "大专", "研究生及以上")),
+    poverty_ratio = INDFMPIR,
+    # 吸烟状态 
+    smoke_status = factor(ifelse(SMQ020 %in% c(7,9), NA, SMQ020),
+                          levels = c(2,1), labels = c("从不吸烟", "曾吸烟")),
+    # 年龄分层
+    age_group = ifelse(RIDAGEYR >= 50, "≥50岁", "<50岁") %>% factor(levels = c("<50岁", "≥50岁")),
+    # 结局转为分类变量
+    breast_cancer = factor(breast_cancer, levels = c(0,1), labels = c("未患乳腺癌", "患乳腺癌"))
+  )
+```
+
+```{r 剔除缺失值，得到最终分析数据集}
+female_clean <- female %>% 
+  filter(!is.na(breast_cancer), !is.na(drink_group), !is.na(RIDAGEYR), !is.na(BMXBMI),
+         !is.na(race), !is.na(education), !is.na(poverty_ratio), !is.na(smoke_status))
+cat("④ 最终有效分析样本：", nrow(female_clean), "人\n")
+```
+
+# 6 描述性分析：基线特征表
+```{r 表1 研究对象基线特征}
+baseline_table <- female_clean %>%
+  select(RIDAGEYR, race, education, poverty_ratio, BMXBMI, smoke_status, drink_group, breast_cancer) %>%
+  tbl_summary(
+    by = breast_cancer,
+    statistic = list(all_continuous() ~ "{median}({p25},{p75})", all_categorical() ~ "{n}({p}%)"),
+    digits = list(all_continuous() ~ c(1,1), all_categorical() ~ c(0,1)),
+    label = list(
+      RIDAGEYR ~ "年龄(岁)", race ~ "种族", education ~ "教育程度",
+      poverty_ratio ~ "收入贫困比", BMXBMI ~ "BMI(kg/m²)", smoke_status ~ "吸烟状态",
+      drink_group ~ "饮酒频次"
+    ), missing = "no"
+  ) %>%
+  add_overall() %>%
+  add_p(test = list(all_continuous() ~ "wilcox.test", all_categorical() ~ "chisq.test")) %>%
+  modify_caption("表1 研究对象基线特征表")
+baseline_table
+# 导出Word文件
+baseline_table %>% as_flex_table() %>%
+  save_as_docx(path = "D:/JUMP-R-2026/students/niujiayi/doc/表1_基线特征.docx")
+```
+
+# 7 Logistic回归分析
+## 7.1 单因素与多因素回归汇总表
+```{r 表2 单/多因素Logistic回归}
+# 单因素回归
+uni_model <- glm(breast_cancer ~ drink_group, data = female_clean, family = binomial())
+uni_table <- tbl_regression(uni_model, exponentiate = TRUE, label = list(drink_group ~ "饮酒频次")) %>%
+  modify_caption("单因素logistic回归")
+
+# 多因素调整回归
+multi_model <- glm(breast_cancer ~ drink_group + RIDAGEYR + race + education + poverty_ratio + BMXBMI + smoke_status,
+                   data = female_clean, family = binomial())
+multi_table <- tbl_regression(multi_model, exponentiate = TRUE, label = list(drink_group ~ "饮酒频次")) %>%
+  modify_caption("多因素调整logistic回归")
+
+# 合并表格
+reg_combined <- tbl_merge(list(uni_table, multi_table), tab_spanner = c("模型1 未调整", "模型2 调整全部混杂"))
+reg_combined
+# 导出Word
+reg_combined %>% as_flex_table() %>%
+  save_as_docx(path = "D:/JUMP-R-2026/students/niujiayi/doc/表2_回归结果汇总.docx")
+```
+
+## 7.2 年龄分层回归
+```{r 表3 年龄分层回归分析}
+strat_model <- glm(breast_cancer ~ drink_group + RIDAGEYR + race + education + poverty_ratio + BMXBMI + smoke_status + age_group,
+                   data = female_clean, family = binomial())
+strat_table <- tbl_regression(strat_model, exponentiate = TRUE) %>% modify_caption("表3 年龄分层回归分析")
+strat_table
+strat_table %>% as_flex_table() %>%
+  save_as_docx(path = "D:/JUMP-R-2026/students/niujiayi/doc/表3_分层分析.docx")
+```
+
+## 7.3 敏感性分析（饮酒简化三分组）
+```{r 表4 敏感性分析}
+sens_model <- glm(breast_cancer ~ drink_group_simple + RIDAGEYR + race + education + poverty_ratio + BMXBMI + smoke_status,
+                  data = female_clean, family = binomial())
+sens_table <- tbl_regression(sens_model, exponentiate = TRUE) %>% modify_caption("表4 敏感性分析（饮酒简化分组）")
+sens_table
+sens_table %>% as_flex_table() %>%
+  save_as_docx(path = "D:/JUMP-R-2026/students/niujiayi/doc/表4_敏感性分析.docx")
+```
+
+# 8 模型诊断：共线性、拟合优度
+```{r 模型诊断检验}
+vif_result <- vif(multi_model)
+hl_test <- hoslem.test(female_clean$breast_cancer, fitted(multi_model), g = 10)
+cat("\n===== 模型诊断结果 =====\n")
+cat("VIF最大值：", max(vif_result), "\n")
+cat("Hosmer-Lemeshow检验P值：", hl_test$p.value, "\n")
+```
+
+# 9 可视化图表绘制
+## 9.1 描述性绘图：年龄、饮酒构成、BMI箱线
+```{r 图1 年龄分布密度图}
+p1 <- ggplot(female_clean, aes(x = RIDAGEYR, fill = breast_cancer)) +
+  geom_density(alpha = 0.6) + labs(x = "年龄", y = "密度", fill = "乳腺癌状态", title = "研究人群年龄分布") + theme_bw()
+print(p1)
+ggsave("D:/JUMP-R-2026/students/niujiayi/doc/图1_年龄分布.png", p1, width = 8, height = 5, dpi = 300)
+```
+
+```{r 图2 饮酒分组患病堆叠柱状图}
+p2 <- ggplot(female_clean, aes(x = drink_group, fill = breast_cancer)) +
+  geom_bar(position = "fill") + 
+  scale_y_continuous(labels = percent_format()) +
+  labs(x = "饮酒频次", y = "占比", fill = "患病状态", title = "各组乳腺癌患病占比") + theme_bw()
+print(p2)
+ggsave("D:/JUMP-R-2026/students/niujiayi/doc/图2_饮酒构成比.png", p2, width = 9, height = 5, dpi = 300)
+```
+
+```{r 图3 BMI分布箱线图}
+p3 <- ggplot(female_clean, aes(x = breast_cancer, y = BMXBMI, fill = breast_cancer)) +
+  geom_boxplot() + labs(x = "患病状态", y = "BMI", title = "BMI分布对比") + theme_bw()
+print(p3)
+ggsave("D:/JUMP-R-2026/students/niujiayi/doc/图3_BMI箱线图.png", p3, width = 7, height = 5, dpi = 300)
+```
+
+## 9.2 多因素回归森林图
+```{r 图4 森林图}
+forest_data <- tidy(multi_model, exponentiate = TRUE, conf.int = TRUE) %>%
+  filter(term != "(Intercept)")
+p_forest <- ggplot(forest_data, aes(x = estimate, y = term, xmin = conf.low, xmax = conf.high)) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "red") +
+  geom_point(size = 2) + geom_errorbarh(height = 0.2) +
+  labs(x = "OR值", y = "变量", title = "多因素回归森林图") + theme_bw()
+print(p_forest)
+ggsave("D:/JUMP-R-2026/students/niujiayi/doc/图4_森林图.png", p_forest, width = 10, height = 6, dpi = 300)
+```
+
+## 9.3 规范版ROC曲线（坐标轴反转优化，无样本长度报错）
+```{r ROC曲线绘图}
+# 重新拟合兼容缺失值的多因素模型
+fit_multi <- glm(
+  breast_cancer ~ drink_group + RIDAGEYR + factor(race) + factor(education) + poverty_ratio + BMXBMI + factor(smoke_status),
+  data = female, 
+  family = binomial(link = "logit"),
+  na.action = na.exclude
+)
+
+# 筛选有效样本，解决向量长度不匹配
+pred <- predict(fit_multi, type = "response")
+valid_idx <- !is.na(pred)
+roc_obj <- roc(female$breast_cancer[valid_idx], pred[valid_idx])
+auc_value <- as.numeric(auc(roc_obj))
+roc_data <- data.frame(
+  spec = roc_obj$specificities,
+  sens = roc_obj$sensitivities
+)
+
+# 标准学术ROC图
+ggplot(roc_data, aes(x = spec, y = sens)) +
+  geom_line(linewidth = 1, color = "black") +
+  geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray40") +
+  labs(
+    title = "多因素回归模型ROC曲线",
+    x = "特异度 Specificity",
+    y = "灵敏度 Sensitivity",
+    subtitle = paste0("AUC = ", round(roc_obj$auc, 3))
+  ) +
+  scale_x_reverse(limits = c(1, 0)) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5)
+  )
+
+# 导出PNG图片
+ggsave("D:/JUMP-R-2026/students/niujiayi/doc/ROC曲线图.png", width = 9.5, height = 9, dpi = 300)
+cat("模型AUC值：", auc_value, "\n")
+```
+
+# 10 全流程分析心指标汇总
+```{r 样本与模型指标汇总}
+cat("\n==================== 汇报核心数据汇总 ====================\n")
+cat("最终样本量：", nrow(female_clean), "\n")
+cat("乳腺癌病例数：", sum(female_clean$breast_cancer == "患乳腺癌"), "\n")
+cat("人群患病率：", round(mean(female_clean$breast_cancer == "患乳腺癌")*100,2), "%\n")
+cat("VIF最大值：", round(max(vif_result),3), "\n")
+cat("HL检验P值：", round(hl_test$p.value,4), "\n")
+cat("模型AUC：", round(auc_value,3), "\n")
+cat("==========================================================\n")
+```
+
+# 11 结果讨论
+## 11.1 主要结果解读
+   从基线表可以看出，乳腺癌患病人群年龄整体更高，不同种族人群患病分布存在统计学差异；BMI、教育、吸烟状态在两组人群中差异不明显。
+   单因素模型中少量饮酒看似存在保护作用，但在校正全部混杂变量后，四类饮酒分组和乳腺癌患病均无独立相关关系；年龄是稳定的危险因素。
+   模型诊断结果显示协变量无明显多重共线性，HL检验P＞0.05，模型拟合效果合格；ROC曲线AUC数值较高，模型区分患病、未患病人群的效果较好。
+   简化饮酒分组做敏感性分析后，结论没有发生改变，说明本次分析结果具备稳定性。
+
+## 11.2 和现有研究对比
+   很多长期随访队列发现大量持续饮酒会小幅提升女性乳腺癌发病风险，但本次横断面数据没有得出相同结论。我分析存在几个实操层面的原因：
+1. 本次仅收集近一年饮酒频率，无法反映多年长期饮酒习惯；
+2. 饮酒、肿瘤患病均为问卷自填内容，存在回忆偏差；
+3. 原始数据库缺少生育史、激素用药等关键混杂变量，校正不够全面。
+
+## 11.3 公共卫生层面启示
+   根据本次分析结果，仅依靠短期饮酒频次无法预测女性乳腺癌患病风险。乳腺肿瘤预防不能只关注饮酒行为，年龄、种族等基线因素同样需要重点关注；后续调研需要完善长期饮酒剂量、生育相关信息的采集。
+
+# 12 研究局限性
+   1. 研究设计限制：NHANES属于横断面调研，只能分析变量相关性，无法推导因果关系，汇报时不能表述“饮酒会导致乳腺癌”；
+   2. 问卷信息存在偏倚：饮酒行为、乳腺肿瘤患病依靠受试者自行填报，容易出现回忆偏差、隐瞒真实情况；
+   3. 混杂变量不全：数据库未收录初潮年龄、生育胎次、雌激素药物使用、乳腺筛查记录等公认乳腺癌相关变量，校正存在缺陷；
+   4. 暴露指标粗糙：问卷只记录饮酒频次，没有单次饮酒量、饮酒总年限，无法开展剂量-反应分析
+   5. 实操局限：本次仅使用2017-2020四年数据，样本量有限，无法开展细分亚组深度分析。
+
+# 13 总结与后续改进思路
+## 13.1 研究总结
+   本次研究依托NHANES 2017-2020数据库完成全套分析，完整走完数据合并、清洗、基线描述、Logistic回归、分层、敏感性分析、模型诊断、可视化全部流程。校正混杂后未发现饮酒频次与乳腺癌患病存在独立关联，模型拟合稳定，结果经过敏感性检验验证。
+   本次课程分析也让我熟练掌握多数据库合并、logistic建模、统计图表绘制整套R语言操作，夯实流统分析基础。
+
+## 13.2 后续优化方向
+   1. 扩充多周期NHANES数据，扩大样本量，细分种族、年龄亚组分析；
+   2. 补充生育、激素相关问卷变量，完善混杂校正；
+   3. 整合单次饮酒量、饮酒年限构建累计饮酒暴露指标，分析剂量反应关系；
+   4. 若有随访队列数据，可采用Cox回归开展前瞻性发病研究。
+

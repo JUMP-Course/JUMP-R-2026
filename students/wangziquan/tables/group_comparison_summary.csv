@@ -1,0 +1,5 @@
+question,method,p_value,interpretation
+Is hypertension prevalence different across BMI groups?,Chi-square test,9.551468412006828e-6,Group difference was statistically significant at alpha = 0.05.
+Is age distribution different across BMI groups?,Kruskal-Wallis test,1.2788572379905567e-19,Group difference was statistically significant at alpha = 0.05.
+Is sex distribution different across BMI groups?,Chi-square test,3.769133294358295e-6,Group difference was statistically significant at alpha = 0.05.
+Is smoking status different across BMI groups?,Chi-square test,0,Group difference was statistically significant at alpha = 0.05.

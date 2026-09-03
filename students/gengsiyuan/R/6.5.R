@@ -6,6 +6,7 @@ library(writexl)
 library(survey)
 library(naniar)
 
+#导入数据
 # 2007-2008
 thyroid_0708 <- nhanes("THYROD_E")
 urine_cadmium_0708 <- nhanes("UHM_E")
@@ -55,6 +56,28 @@ identical(names(thyroid_0910), names(thyroid_1112))
 identical(names(urine_cadmium_0708), names(urine_cadmium_0910))
 identical(names(urine_cadmium_0910), names(urine_cadmium_1112))
 
+# 查看各周期所有列名
+# DEMO 表
+names(demo_0708)
+names(demo_0910)
+names(demo_1112)
+# BMX 表
+names(bmx_0708)
+names(bmx_0910)
+names(bmx_1112)
+# SMQ 表
+names(smoke_0708)
+names(smoke_0910)
+names(smoke_1112)
+# BPQ 表
+names(bpq_0708)
+names(bpq_0910)
+names(bpq_1112)
+# THYROID 表
+names(thyroid_0708)
+names(thyroid_0910)
+names(thyroid_1112)
+# URINE CADMIUM 表
 names(urine_cadmium_0708)
 names(urine_cadmium_0910)
 names(urine_cadmium_1112)

@@ -1,0 +1,449 @@
+---
+title: "吸烟与成年人高血压患病的关联性研究——基于NHANES的横断面研究"
+author: "潘弈彤"
+date: "2026-07-03"
+output:
+  html_document:
+    theme: cosmo
+    toc: true
+    toc_float: true
+  pdf_document:
+    toc: true
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+# 关闭tibble自动截断
+options(tibble.print_max = Inf)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(flextable)
+library(officer)
+library(survey)
+library(car)
+# 读取全部rds文件
+sample_summary <- readRDS("../output/sample_summary.rds")
+
+desc_raw <- readRDS("../output/desc_raw.rds")
+desc_pvalue <- readRDS("../output/desc_pvalue.rds")
+desc_formatted_table <- readRDS("../output/desc_formatted_table.rds")
+
+smoking_htn_cross_raw <- readRDS("../output/smoking_htn_cross_raw.rds")
+smoking_chisq_raw <- readRDS("../output/smoking_chisq_raw.rds")
+smoking_htn_table_formatted <- readRDS("../output/smoking_htn_table_formatted.rds")
+
+main_reg_raw <- readRDS("../output/main_reg_raw.rds")
+main_reg_formatted_table <- readRDS("../output/main_reg_formatted_table.rds")
+main_model_list <- readRDS("../output/main_model_list.rds")
+
+sensitivity_analysis_raw <- readRDS("../output/sensitivity_analysis_raw.rds")
+sensitivity_compare_table <- readRDS("../output/sensitivity_compare_table.rds")
+
+stratification_analysis_raw <- readRDS("../output/stratification_analysis_raw.rds")
+strat_formatted_table <- readRDS("../output/strat_formatted_table.rds")
+
+fig_bar_raw <- readRDS("../output/fig_bar_raw.rds")
+fig_forest_raw <- readRDS("../output/fig_forest_raw.rds")
+forest_reg_model <- readRDS("../output/forest_reg_model.rds")
+
+fig_htn_bar <- "../figures/figure1_htn_by_smoking.png"
+fig_forest <- "../figures/figure2_forest_plot.png"
+```
+
+# 1. 研究背景
+
+高血压是心血管疾病的主要危险因素，在全球范围内具有较高的患病率。吸烟作为可改变的心血管危险因素，可通过激活交感神经系统、损伤血管内皮功能升高血压。然而，不同人群、不同数据来源中吸烟与高血压的关联强度存在一定差异，二者的独立关联仍有待在全国代表性样本中进一步验证。美国国家健康与营养调查（NHANES）具有良好的人群代表性，适合开展慢性病危险因素关联研究。
+
+# 2. 研究问题
+
+本研究依托 NHANES 2017–2018
+年横断面数据，在校正潜在混杂因素并开展敏感性分析验证结果稳健性后，吸烟与成年人高血压患病是否存在独立关联，明确吸烟是否为高血压患病的独立危险因素。
+
+# 3. 数据来源与研究对象
+
+## 3.1 数据来源
+
+本研究数据来源于美国国家健康与营养调查（National Health and Nutrition
+Examination Survey, NHANES）2017-2018 年周期数据。NHANES是一项具有全国性
+的横断面调查，采用复杂、多阶段概率抽样设计，评估美国平民、非机构化人群的健康和营养状况。
+
+## 3.2 纳入排除标准
+
+**纳入标准**： 1. 年龄 ≥ 20 岁 2. 吸烟状态信息完整 3. 高血压状态明确
+4.BMI 完整（BMXBMI 非缺失） 5. 教育水平信息完整 **排除标准**： 1. 年龄
+\<20 岁 2. 吸烟状态缺失 3. 高血压状态缺失或回答"不知道" 4. BMI 缺失 5.
+教育水平信息缺失
+
+## 3.3 分析样本
+
+```{r sample-size}
+# 样本量
+# 仅读取提前导出的样本汇总结果，不做任何数据计算
+n_total <- sample_summary$n_total
+n_htn <- sample_summary$n_htn
+n_non_htn <- sample_summary$n_non_htn
+n_smoking <- sample_summary$n_smoking 
+```
+
+最终纳入分析的有效样本量为 `r n_total` 人，其中高血压患者
+`r n_htn`人（`r round(n_htn/n_total*100, 1)`%），非高血压者
+`r n_non_htn`人（`r round(n_non_htn/n_total*100, 1)`%）。
+研究人群中，从不吸烟者、既往吸烟者、当前吸烟者分别为`r n_smoking[1]`、`r n_smoking[2]`、`r n_smoking[3]`人。
+
+# 4. 变量定义
+
+## 4.1 高血压（结局变量）
+
+高血压定义为满足以下任一条件： 1. 平均收缩压 ≥ 140 mmHg 或 平均舒张压 ≥
+90 mmHg 2. 曾被医生诊断高血压（BPQ020 = 1）
+
+其中，平均收缩压和舒张压为三次测量值的平均值。
+
+## 4.2 吸烟状态（暴露变量）
+
+吸烟状态分为三组： - **Never**：一生吸烟 \< 100 支（SMQ020 = 2） -
+**Former**：吸过 ≥ 100 支，现在不吸（SMQ020 = 1 且 SMQ040 = 3） -
+**Current**：吸过 ≥ 100 支，现在每天或偶尔吸（SMQ020 = 1 且 SMQ040
+∈{1,2}）
+
+## 4.3 协变量
+
+本研究考虑的潜在协变量包括：年龄（≤ 60，\>
+60）、性别（Male/Female）、种族（6类）、BMI分组（WHO标准四分类）、教育水平（三分类）、
+家庭收入与贫困比PIR（三分类）。
+
+# 5. 统计方法
+
+## 5.1 数据预处理
+
+本研究导入 NHANES 2017–2018
+周期原始合并数据集后，首先对全部变量进行初步探查，核对变量标签、编码定义与缺失值分布。随后严格按照预设的纳入与排除标准筛选研究对象：纳入年龄≥20
+岁、高血压结局、吸烟暴露状态、BMI指标完整的研究个体；排除年龄小于20岁、吸烟状态信息缺失或回答“未知”、血压测量数据缺失、BMI
+指标缺失、教育水平信息缺失的观测，对PIR的缺失值采用多重插补方法进行填补。剔除暴露、结局与核心协变量存在缺失的样本，最终生成清洗完成的分析数据集。
+完成样本筛选后，对关键研究变量进行预处理：高血压结局、吸烟暴露保留原始分类编码；将连续型变量年龄、体质量指数BMI、家庭收入与贫困比PIR，通过参考相关文献，依据国内外流行病学研究通用界值进行分组，转换为分类变量；种族分类、教育水平直接沿用NHANES数据库原有分层。所有分析变量完成编码重构后，导出保存用于后续全部加权统计分析。
+
+## 5.2 统计分析
+
+本研究所有分析均考虑 NHANES 复杂抽样设计，使用 MEC
+检查权重（WTMEC2YR）进行加权分析。
+采用描述性分析和卡方检验分析基线特征，绘制不同吸烟状态高血压患病率条形图，森林图。
+采用加权 logistic 回归模型评估吸烟与高血压的关联，构建两个模型： -
+**模型一（粗模型）**：仅纳入吸烟状态 -
+**模型二（全调整模型）**：纳入吸烟状态 + 年龄 + 性别 + 种族 + BMI
+
+## 5.3 补充分析
+
+按照年龄、性别进行分层分析，探索关联的异质性。在模型2的基础上分别纳入教育水平和PIR构建模型，进行敏感性分析，观察吸烟与高血压关联的效应值及其95%置信区间的变化，以验证结果的稳健性。
+
+## 5.4 统计指标与软件
+
+效应指标为比值比（OR）及其 95% 置信区间（CI）。所有分析使用 R 4.6.0
+完成。
+
+# 6. 结果
+
+## 6.1 研究对象基线特征
+
+本研究最终纳入 5,155 名 20 岁及以上美国成年人，加权后代表 141,675,772
+名美国成年人，其中高血压组加权比例为 38.0%，非高血压组为 62.0%。
+
+研究对象的基本特征见表1。与无高血压组相比，高血压组中吸烟状态分布差异有统计学意义（P
+\< 0.001），当前吸烟者比例略高（16.4% vs
+18.2%），但高血压组中从不吸烟者比例较低（61.7% vs
+51.8%）；年龄差异显著（P \< 0.001），高血压组中 \>60
+岁人群比例更高（46.3% vs 14.3%），≤ 60 岁人群比例更低（53.7% vs
+85.7%）；性别差异显著（P \< 0.001），高血压组中男性比例更高（51.5% vs
+45.9%）；种族分布差异显著（P \<
+0.001），高血压组中非西班牙裔黑人比例更高（13.8% vs
+9.8%），墨西哥裔美国人比例更低（5.7% vs 10.7%）；BMI 分组差异显著（P \<
+0.001），高血压组中肥胖者比例远高于非高血压组（53.7% vs
+35.4%）；教育水平差异无统计学意义（P = 0.133）；家庭收入与贫困比
+PIR差异无统计学意义（P = 0.521）。
+
+**表1 按高血压分组的人群基线特征（加权分析）**
+
+```{r}
+# 直接插入预格式化表格
+desc_formatted_table
+
+```
+
+## 6.2 吸烟与高血压的关联分析
+
+### 6.2.1 不同吸烟状态的高血压患病情况比较
+
+**表2 不同吸烟状态的高血压患病情况**
+
+```{r}
+smoking_htn_table_formatted
+
+```
+
+加权卡方检验显示，不同吸烟状态人群的高血压患病率存在显著差异（χ² =
+22.904，P \<
+0.001）。从不吸烟者（Never）：加权患病率为35.7%；曾经吸烟者（For
+mer）：加权患病率为 51.1%；当前吸烟者（Current）：加权患病率为 37.3%。
+其中，曾经吸烟者（Former）的高血压患病率最高（51.1%），远高于从不吸烟者（35.7%）和当前吸烟者（37.3%）。从不吸烟者和当前吸烟者的患病率接近（35.7%
+vs 37.3%）。
+
+### 6.2.2 不同吸烟状态的高血压患病率（条形图）
+
+```{r}
+clean_data <- readRDS("../data/raw/clean_data.rds")
+
+# 设置 survey 设计对象（用于加权）
+design <- svydesign(
+  id = ~SDMVPSU,
+  strata = ~SDMVSTRA,
+  weights = ~WTMEC2YR,
+  data = clean_data,
+  nest = TRUE)
+# 计算加权患病率
+htn_by_smoking <- svyby(~hypertension, ~smoking, design, svymean, na.rm = TRUE)
+htn_by_smoking <- as.data.frame(htn_by_smoking)
+colnames(htn_by_smoking) <- c("smoking", "hypertension_rate", "SE")
+library(ggplot2)
+htn_by_smoking$smoking <- factor(
+  htn_by_smoking$smoking,
+  levels = c("Never", "Current", "Former"))
+p1 <- ggplot(htn_by_smoking, aes(x = smoking, y = hypertension_rate * 100, fill = smoking)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  geom_errorbar(aes(ymin = (hypertension_rate - 1.96 * SE) * 100,
+                    ymax = (hypertension_rate + 1.96 * SE) * 100),
+                width = 0.2) +
+  labs(title = "图1 不同吸烟状态的高血压患病率",
+       x = "吸烟状态",
+       y = "高血压患病率 (%)") +
+  scale_fill_manual(values = c("Never" = "#2E86AB", "Former" = "#A23B72", "Current" = "#F18F01")) +
+  theme_minimal() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+p1
+```
+
+图1直观展示了不同吸烟状态的高血压加权患病率及其95%置信区间。从图中可见，曾经吸烟者（Former）的高血压患病率最高（51.1%），显著高于从不吸烟者（35.7%）和当前吸烟者（37.3%）；当前吸烟者的患病率（37.3%）略高于从不吸烟者（35.7%），但差距较小，且置信区间存在重叠，提示这一差异在统计上可能不显著。
+值得注意的是，当前吸烟者与从不吸烟者的患病率差异并不明显，这一现象可能受“健康吸烟者效应”影响——长期吸烟者中体质较弱者可能已经死亡，存活者相对健康；同时，戒烟者往往因健康问题而就医，导致其高血压检出率更高（51.1%）。此外，年龄、性别、BMI等混杂因素也可能影响这一粗关联，需在后续多因素回归中进一步调整后明确吸烟的独立效应。
+
+### 6.2.3 多因素 logistic 回归（主分析）
+
+**表3 吸烟与高血压关联的加权 logistic 回归分析**
+
+```{r}
+main_reg_formatted_table
+
+```
+
+为控制混杂因素，进一步采用加权
+logistic回归模型评估吸烟与高血压的独立关联，结果如表2所示。粗模型（未调整任何混杂因素）显示：曾经吸烟者（Former）的高血压风险显著高于从不吸烟者（OR
+= 1.884，95% CI:1.566-2.265，P \<
+0.001）；当前吸烟者（Current）与从不吸烟者之间无显著关联（OR =
+1.074，95% CI: 0.865-1.333，P = 0.518）。
+
+基于单因素分析结果，教育水平和 PIR
+与高血压的关联均未达到统计学显著性水平，因此未纳入多因素模型。最终模型调整的协变量包括年龄、性别、种族和BMI。
+全调整模型（调整年龄、性别、种族、BMI）显示：曾经吸烟者（Former）的高血压风险比从不吸烟者高
+42%（OR = 1.416，95% CI: 1.184-1.694，P \< 0.001）
+当前吸烟者（Current）的高血压风险比从不吸烟者高 29%（OR = 1.286，95% CI:
+1.007-1.642，P = 0.044）。
+调整混杂因素后，无论曾经吸烟还是当前吸烟，高血压风险均显著高于从不吸烟者，提示吸烟是高血压的独立危险因素。
+
+值得注意的是，调整混杂因素后，当前吸烟者的 OR 值从 1.074（P =
+0.518）升高至 1.286（P =
+0.044），说明年龄、性别、种族、BMI等混杂因素对当前吸烟者
+等混杂因素对当前吸烟者与高血压的关联存在掩盖效应，即未调整时吸烟的真实效应被这些因素掩盖了。此外，全调整模型中曾经吸烟者的
+OR 从 1.884 降至 1.416，降幅约
+25%，提示部分关联由混杂因素解释，但调整后仍有统计学意义。
+
+### 6.2.4 森林图
+
+```{r}
+clean_data <- readRDS("../data/raw/clean_data.rds")
+clean_data$smoking <- relevel(factor(clean_data$smoking), ref = "Never")
+clean_data$race <- relevel(factor(clean_data$race), ref = "Non-Hispanic White")
+clean_data$education <- relevel(factor(clean_data$education), ref = "College or above")
+clean_data$pir_group <- relevel(factor(clean_data$pir_group), ref = "High")
+clean_data$age_group <- relevel(factor(clean_data$age_group), ref = "≤60")
+# 设置 survey 设计对象（用于加权）
+design <- svydesign(
+  id = ~SDMVPSU,
+  strata = ~SDMVSTRA,
+  weights = ~WTMEC2YR,
+  data = clean_data,
+  nest = TRUE)
+suppressWarnings({
+fit_model <- svyglm(
+  hypertension ~ smoking + age_group + gender + race + bmi_group,
+  design = design,
+  family = binomial(link = "logit")
+)
+})
+# 用 summary 提取结果
+summ <- summary(fit_model)
+
+# 提取系数、标准误、p 值
+coef_table <- as.data.frame(summ$coefficients)
+
+# 计算 OR
+OR <- exp(coef_table$Estimate)
+
+# 手动计算 95% CI（基于标准误）
+LCL <- exp(coef_table$Estimate - 1.96 * coef_table$`Std. Error`)
+UCL <- exp(coef_table$Estimate + 1.96 * coef_table$`Std. Error`)
+
+# 合并成数据框
+or_data <- data.frame(
+  variable = rownames(coef_table),
+  OR = OR,
+  LCI = LCL,
+  UCI = UCL)
+
+# 去掉截距
+or_data <- or_data[or_data$variable != "(Intercept)", ]
+
+# 清理变量名
+or_data$variable <- gsub("smoking", "", or_data$variable)
+or_data$variable <- gsub("age_group", "", or_data$variable)
+or_data$variable <- gsub("gender", "", or_data$variable)
+or_data$variable <- gsub("race", "", or_data$variable)
+or_data$variable <- gsub("bmi_group", "", or_data$variable)
+
+# 添加分组标签
+or_data$group <- c(
+  rep("吸烟 (ref: Never)", 2),
+  "年龄 (ref: ≤60)",
+  "性别 (ref: Female)",
+  rep("种族(ref: Non-Hispanic White)", 5),
+  rep("BMI (ref: Normal)", 3))
+  
+
+# 绘图
+
+p2 <- ggplot(or_data, aes(x = OR, y = variable, color = group)) +
+  geom_point(size = 2.8) +
+  geom_errorbar(
+    aes(xmin = LCI, xmax = UCI),
+    height = 0.22,
+    linewidth = 0.8,
+    orientation = "y") +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "black", linewidth = 0.7) +
+  scale_x_log10(
+    labels = scales::comma_format(accuracy = 0.1),
+    breaks = c(0.5, 1, 2, 4, 8, 16)) +
+  coord_cartesian(xlim = c(0.5, 16)) +
+  labs(
+    x = "Odds Ratio (95% Confidence Interval)",
+    y = "",
+    color = "变量分组",
+    title = "图2 各因素与高血压关联的多因素加权Logistic回归森林图") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14),
+    axis.title.x = element_text(size = 12),
+    axis.text = element_text(size = 11),
+    legend.position = "bottom",
+    legend.box = "vertical",
+    plot.margin = margin(b = 18, t = 5, l = 5, r = 5),
+    legend.margin = margin()
+  ) +
+  # 核心：5个元素，前3个第一行，后2个第二行，完美均分，不会溢出
+  guides(color = guide_legend(
+    ncol = 3,
+    byrow = TRUE,
+    title.position = "top"
+  ))
+print(p2)
+
+```
+
+图2以森林图形式展示了全调整模型中各因素与高血压的关联强度及95%置信区间。图中可见，吸烟的OR点估计值大于1，95%CI不与1相交，与主分析结果一致。在纳入模型的所有因素中，年龄
+≥60 岁和肥胖的效应最强（OR \> 3），提示二者是高血压最主要的风险因素。
+
+### 6.2.5 模型诊断
+
+为评估模型质量，本研究进行了多重共线性诊断和模型拟合比较。
+**多重共线性诊断**：使用方差膨胀因子（VIF）对全调整模型进行共线性诊断，所有变量的GVIF\^(1/(2×Df))均小于5（范围：1.46-3.30），提示模型不存在严重的多重共线性问题。
+**模型拟合比较**：采用 Rao-Scott
+似然比检验比较粗模型与全调整模型的拟合优度。结果显示，全调整模型的拟合显著优于粗模型（LRT
+χ² = 496.235，df = 10，P \< 0.001），提示纳入年龄、性别、种族、BMI
+等协变量显著提高了模型的解释力。
+
+## 6.3 敏感性分析
+
+表4 吸烟与高血压关联的敏感性分析
+
+```{r}
+sensitivity_compare_table
+```
+
+为验证主分析结果的稳健性，本研究在模型二基础上分别加入PIR和教育水平进行敏感性分析，观察吸烟与高血压关联的OR值变化。结果显示，加入PIR后，曾经吸烟者的
+OR 值为 1.410（95% CI: 1.180-1.684，P \< 0.001），当前吸烟者的 OR 值为
+1.252（95% CI:0.981-1.598，P = 0.071）；加入教育水平后，曾经吸烟者 的 OR
+值为 1.397（95% CI: 1.170-1.668，P \< 0.001），当前吸烟者的 OR 值为
+1.234（95% CI: 0.975-1.563，P = 0.081）。
+
+与主分析相比，无论是否调整 PIR 或教育水平，曾经吸烟者的 OR 值稳定在 1.40
+左右，波动幅度很小，且均具有统计学显著性（P \< 0.001）；当前吸烟者的 OR
+值虽略有下降（从 1.286 降至 1.252
+和1.234），95%CI下限略低于1.00，但方向始终一致。整体来看，吸烟与高血压的正向关联在不同模型设定下保持稳定，主结果受
+PIR 和教育水平调整的影响较小，具有较好的稳健性。
+
+## 6.4 分层分析
+
+表5 吸烟与高血压关联的分层分析
+
+```{r}
+strat_formatted_table
+```
+
+在敏感性分析的基础上，为进一步探索吸烟与高血压的关联在不同人群中是否一致，本研究按性别和年龄进行分层分析，结果见表5。
+
+按性别分层：男性中吸烟与高血压的关联OR值为1.489（95% CI:1.108-2.000，P =
+0.058），女性中OR值为1.432（95% CI:1.063-1.930，P = 0.077），均呈正向
+关联。性别与吸烟的交互作用P值为0.596，远大于0.05，说明吸烟与高血压的关联在男性和女性之间无显著差异。
+
+按年龄分层：≤ 60岁组吸烟与高血压的关联OR值为1.436（95% CI:
+1.083-1.905，P = 0.066），\> 60岁组OR值为1.398（95% CI: 0.994-1.965，P =
+0.126），均
+大于1，方向与主分析一致。年龄与吸烟的交互作用P值为0.266，远大于0.05，说明吸烟与高血压的关联在不同年龄组之间无显著差异。
+
+综上，分层分析提示吸烟对高血压的影响在不同性别和年龄组中均呈现一致的正向趋势，且交互作用检验均不显著，说明不存在明显的效应修饰作用，进一步支持了主分析结果的稳健性。
+
+# 7. 讨论
+
+## 7.1 主要发现
+
+本研究发现，调整年龄、性别、种族、BMI
+等混杂因素后，吸烟与高血压之间存在显著的正向关联。曾经吸烟者的高血压风险比从不吸烟者高
+42%（OR = 1.416， 95% CI: 1.184-1.694，P \<
+0.001）；当前吸烟者的高血压风险比从不吸烟者高 29%（OR = 1.286，95% CI:
+1.007-1.642，P = 0.044）。分层分析显示该关联在
+不同性别和年龄组中无显著差异（交互 P 均 \>
+0.05），敏感性分析进一步验证了结果的稳健性。
+
+本研究结果与现有文献基本一致。Wu 等（2025）基于 NHANES 1999-2018
+数据发现，吸烟显著增加高血压风险（调整后 OR = 1.18，95%
+CI:1.10-1.27），本研究 的 OR
+值与之方向一致但略高，可能与单周期数据带来的样本量差异和人群构成差异有关。Sun和Li（2024）同样发现吸烟与多种健康风险的正向关联，提示吸烟对健康的影响具有多系统性特征。值得注意的是，本研究中曾经吸烟者的效应（OR
+= 1.416）高于当前吸烟者（OR = 1.286），与Wu等（2025）的结果模式一致，可
+能反映的是“戒烟者因健康问题就医，从而增加了高血压被检出的机会”，这一现象在横断面研究中并不少见。
+
+## 7.2 潜在机制与临床意义
+
+吸烟可能通过多种机制升高血压。尼古丁可激活交感神经系统，促进儿茶酚胺释放，导致心率加快和血管收缩；同时可诱导血管内皮功能障碍，损害一氧化氮介导的血管舒张功能，增加外周血管阻力；还可激活全身慢性炎症状态，进一步加速血管损伤和血压升高。这些机制共同解释了吸烟与高血压之间的正向关联，也提示吸烟对心血管系统的损害是多靶点、多通路的。
+
+本研究结果对临床实践和公共卫生政策具有重要启示。吸烟史应作为高血压风险评估的重要组成部分，临床医生应常规询问患者的吸烟状况；对于已明确诊断高血压的患者，戒烟应作为综合治疗方案的组成部分。此外，分层分析表明吸烟对血压的影响在不同性别和年龄组中具有一致性，提示戒烟干预的获益可能具有广泛的人群适用性。
+
+## 7.3 局限性
+
+1.  横断面研究设计，无法推断因果关系
+2.  高血压部分基于自报，可能存在回忆偏倚
+3.  仅纳入单周期 NHANES 数据，样本量有限
+4.  吸烟状态为自报，可能存在报告偏倚
+
+# 8. 结论
+
+本研究基于 NHANES 2017-2018
+数据，采用加权logistic回归分析发现，吸烟与成年人高血压患病风险存在正向关联。调整混杂因素后，当前吸烟者和曾经吸烟者的高血压风险均显著高于从不吸烟者，提示吸烟是高血压的独立危险因素。分层分析显示该关联在不同性别和年龄组中一致，结果稳健。

@@ -1,7 +1,9 @@
 library(haven)
 library(dplyr)
+# 仅本脚本生效的工作路径，只读data，不污染全局
+local({
+  setwd("~/GitHub/JUMP-R-2026/students/panyitong/data/raw")})
 
-setwd("~/GitHub/JUMP-R-2026/students/panyitong/data/raw")
 
 # 读取数据
 demo <- read_xpt("DEMO_J.XPT")

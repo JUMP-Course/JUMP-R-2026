@@ -1,0 +1,901 @@
+---
+title: "基于NHANES数据库的成年人糖尿病危险因素分析"
+author: "徐晓蝉"
+date: "2026-07-07"
+output: html_document
+css: 自定义样式.css
+---
+
+
+#1. 研究背景
+
+    糖尿病是全球高发慢性代谢性疾病，伴随老龄化、久坐、高脂高糖饮食普及，成人患病风险持续上升，可诱发心脑血管、肾脏、眼底多种严重并发症，大幅增加公共卫生医疗负担。
+    NHANES 是美国全国代表性健康营养调查公共数据库，采用分层多阶段复杂抽样设计，配套官方抽样权重，涵盖人口学、体格测量、血常规、血脂、生活饮食行为多维度指标，数据具备人群代表性。
+    本研究采用复杂抽样加权统计方法，整合人口、体格、血液、饮食多类指标，系统挖掘糖尿病独立危险因素，为社区人群糖尿病早期筛查、生活干预提供循证依据。
+    
+#2. 研究问题
+
+    1.基于加权描述统计，糖尿病与非糖尿病人群在人口学、体格、血常规、血脂、饮食行为指标上是否存在分布差异;
+    2.单因素加权 Logistic 回归下，哪些指标与糖尿病患病存在粗关联;
+    3.校正年龄、性别、种族、教育混杂因素后，哪些指标是糖尿病独立危险因素 / 保护因素;
+    4.剔除 1%-99% 极端值开展 Winsor 缩尾敏感性分析后，核心危险因素结果是否稳健可靠。
+
+#3. 数据来源与研究对象
+
+##3.1 数据来源
+
+    数据来源于美国国家健康与营养检查调查NHANES 2021-2023周期公开数据集，整合人口问卷、体格检查、实验室血液检测模块，导出 Excel 清洗后用于本次分析。
+
+##3.2 研究对象
+
+    1.纳入标准：18 岁及以上成年受试者；拥有完整两年体检抽样权重；糖尿病结局变量无缺失。
+    2.排除标准：抽样权重缺失、糖尿病确诊状态缺失、关键自变量大量缺失的观测样本。
+    
+```{r, echo=FALSE,message=F}
+# 批量加载本次分析所有依赖R包
+# readxl/writexl：Excel文件读写
+# ggplot2/tidyr：数据重塑与可视化绘图
+# survey：复杂抽样加权统计、加权t检验/卡方/Logistic回归
+# dplyr：数据清洗、管道批量处理
+# forestploter/grid：森林图绘制
+# car：VIF多重共线性检验
+# knitr/kableExtra：表格美化输出
+library(readxl)
+library(writexl)
+library(ggplot2)
+library(tidyr)
+library(survey)
+library(dplyr)
+library(forestploter)
+library(grid)
+library(car)
+library(knitr)
+library(kableExtra)
+```
+
+#4 变量说明
+
+##4.1 结局变量
+
+    是否确诊糖尿病：二分类变量，1 = 确诊糖尿病（y=1），2 = 未患糖尿病（y=0），构建 0/1 二分类结局用于 Logistic 回归。
+
+##4.2 抽样权重变量
+
+    wt：复制原始 NHANES 两年体检抽样权重，用于校正复杂抽样偏倚，所有描述、检验、回归模型均纳入权重。
+
+##4.3 分类自变量
+
+    性别：1 男性、2 女性；
+    种族分类：墨西哥裔、其他西班牙裔、非西裔白人、非西裔黑人、其他种族；
+    受教育程度：9 年级以下、9-11 年级、高中 / GED、大专、本科及以上；
+    婚姻状况：已婚、离婚、未婚；
+    是否吸烟：是 / 否；既往饮酒状态：是 / 否；高血压患病史：是 / 否；
+    饮食相关变量：饮食限制情况、饮食补充项 1/2/3，均二分类是 / 否。
+
+##4.4 连续自变量
+
+    年龄、家庭收入贫困比值、BMI、上臂围、腰围、臀围、收缩压舒张压；全套血常规（白细胞、各类粒细胞、红细胞、血小板相关指标）；总胆固醇、甘油三酯、高低密度脂蛋白、非高密度脂蛋白、超敏 C 反应蛋白、每日久坐时长等代谢指标。
+
+#5 数据清洗
+
+    1.缺失值筛选：剔除抽样权重 wt、糖尿病结局存在缺失的样本，生成有效分析集；
+    2.结局编码：将糖尿病分组转换为 0/1 二分类变量 y，适配 Logistic 回归；
+    3.分类变量编码转换：原始数字编码批量转为中文标签因子变量，统一参照组顺序；
+    4.抽样设计构建：基于 id=1 独立个体抽样、权重 wt 构建全局调查对象，拆分糖尿病 / 非糖尿病子数据集用于分组描述。
+    
+```{r, echo=FALSE,message=F}
+# 读取桌面原始糖尿病Excel数据集
+df <- read_excel("C:/Users/86156/Desktop/糖尿病.xlsx")
+
+# =====================权重处理=====================
+# 提取原始两年体检抽样权重列
+raw_w <- df$`两年体检抽样权重`
+# NHANES单周期数据，直接使用原始抽样权重作为本次分析权重
+df$wt <- raw_w
+
+# 定义全局权重列、分组列变量
+weight_col <- "wt"
+group_col <- "是否确诊糖尿病"
+
+# 筛选有效分析样本：仅保留权重、糖尿病分组均无缺失的数据
+df_valid <- df[!is.na(df[[weight_col]]) & !is.na(df[[group_col]]), ]
+
+# Logistic回归要求结局变量为0/1二分类格式：糖尿病=1，非糖尿病=0
+df_valid$y <- ifelse(df_valid$`是否确诊糖尿病` == 1, 1, 0)
+
+# 导出带权重的清洗后数据集，保证绘图、基线、回归使用同一套样本，避免重复预处理
+write_xlsx(df_valid, "C:/Users/86156/Desktop/糖尿病权重.xlsx")
+# ========== NHANES 2021-2023 分类变量 数字编码→中文标签批量转换 ==========
+# 1. 性别 RIAGENDR：1=男性，2=女性
+df_valid$性别 <- factor(df_valid$性别, levels = c(1,2), labels = c("男性","女性"))
+
+# 2. 种族分类 RIDRETH1
+# 1:墨西哥裔美国人 2:其他西班牙裔 3:非西班牙裔白人 4:非西班牙裔黑人 5:其他种族
+df_valid$种族分类1 <- factor(df_valid$种族分类1,
+                             levels = c(1,2,3,4,5),
+                             labels = c("墨西哥裔美国人","其他西班牙裔","非西班牙裔白人","非西班牙裔黑人","其他种族"))
+
+# 3. 受教育程度 DMDEDUC2
+# 1:9年级以下 2:9-11年级 3:高中毕业/GED 4:大专 5:本科及以上
+df_valid$受教育程度 <- factor(df_valid$受教育程度,
+                              levels = c(1,2,3,4,5),
+                              labels = c("9年级以下","9-11年级","高中毕业/GED","大专","本科及以上"))
+
+# 4. 婚姻状况 DMDMARTL
+# 1:已婚 2:离婚 3:未婚 
+df_valid$婚姻状况 <- factor(df_valid$婚姻状况,
+                            levels = c(1,2,3),
+                            labels = c("已婚","离婚","未婚"))
+
+# 5. 是否吸烟 SMQ020
+# 1:是 2:否
+df_valid$是否吸烟 <- factor(df_valid$是否吸烟,
+                           levels = c(1,2),
+                           labels = c("是","否"))
+
+# 6. 既往饮酒状态 ALQ101
+# 1:是 2:否
+df_valid$既往饮酒状态 <- factor(df_valid$既往饮酒状态,
+                                levels = c(1,2),
+                                labels = c("是","否"))
+
+
+# 7. 高血压患病史 BPQ020
+# 1:是 2:否
+df_valid$高血压患病史 <- factor(df_valid$高血压患病史,
+                                levels = c(1,2),
+                                labels = c("是","否"))
+
+
+
+# 8.饮食限制情况、饮食相关补充项：1=是，2=否
+df_valid$饮食限制情况 <- factor(df_valid$饮食限制情况, levels = c(1,2), labels = c("是","否"))
+df_valid$饮食相关补充项1 <- factor(df_valid$饮食相关补充项1, levels = c(1,2), labels = c("是","否"))
+df_valid$饮食相关补充项2 <- factor(df_valid$饮食相关补充项2, levels = c(1,2), labels = c("是","否"))
+df_valid$饮食相关补充项3 <- factor(df_valid$饮食相关补充项3, levels = c(1,2), labels = c("是","否"))
+# 构建全局抽样设计对象：独立个体抽样，无聚类，绑定抽样权重
+svy_design <- svydesign(ids = ~1, weights = ~wt, data = df_valid)
+# 拆分非糖尿病组抽样设计对象，用于分组加权描述统计
+svy_nondiab <- subset(svy_design, df_valid[[group_col]] == 2)
+# 拆分糖尿病组抽样设计对象
+svy_diab <- subset(svy_design, df_valid[[group_col]] == 1)
+# 构建复杂抽样调查设计对象，用于后续所有加权统计分析
+svy_design <- svydesign(ids = ~1, weights = ~wt, data = df_valid)
+```
+
+```{r, echo=FALSE,message=F}
+# 分类变量
+cat_vars <- c(
+  "性别",
+  "种族分类1",
+  "受教育程度",
+  "婚姻状况",
+  "既往饮酒状态",
+  "高血压患病史",
+  "饮食限制情况",
+  "饮食相关补充项1",
+  "饮食相关补充项2",
+  "饮食相关补充项3",
+  "是否吸烟"
+)
+
+# 连续变量
+cont_vars <- c(
+  "年龄岁",
+  "家庭收入贫困比值",
+  "体质指数BMI",
+  "上臂围cm",
+  "腰围cm",
+  "臀围cm",
+  "收缩压",
+  "舒张压",
+  "白细胞计数",
+  "淋巴细胞百分比",
+  "单核细胞百分比",
+  "中性粒细胞百分比",
+  "嗜酸性粒细胞百分比",
+  "嗜碱性粒细胞百分比",
+  "淋巴细胞绝对值",
+  "单核细胞绝对值",
+  "中性粒细胞绝对值",
+  "红细胞计数",
+  "血红蛋白",
+  "红细胞压积",
+  "平均红细胞体积",
+  "平均红细胞血红蛋白含量",
+  "红细胞分布宽度",
+  "血小板计数",
+  "平均血小板体积",
+  "高密度脂蛋白胆固醇国际单位制",
+  "超敏C反应蛋白",
+  "每日久坐时长",
+  "总胆固醇国际单位制",
+  "甘油三酯国际单位制",
+  "低密度脂蛋白胆固醇国际单位制",
+  "计算法低密度脂蛋白胆固醇国际单位制",
+  "非高密度脂蛋白胆固醇国际单位制"
+)
+
+# 合并所有待分析变量，用于批量循环统计与回归
+all_vars <- c(cat_vars, cont_vars)
+
+# 分类变量转为因子格式：survey包可自动识别分组，默认第一个水平为参照组
+for (var in cat_vars) {
+  df_valid[[var]] <- factor(df_valid[[var]])
+}
+```
+
+#6 加权基线描述性统计分析
+
+##6.1 基线特征表
+
+```{r, echo=FALSE,message=F}
+#===================== 自定义统计函数模块 =====================
+# 函数功能：针对单个分类变量，计算指定抽样数据集下【加权频数、加权百分比】
+# 参数：var_name 分类变量名称；svy_obj 全局/分组抽样设计对象
+# 返回：包含分类水平、加权频数、百分比、"频数(百分比)"格式字符串的数据框
+calc_cat_group <- function(var_name, svy_obj) {
+  # 调用survey包函数，计算该分类变量加权列联表
+  tbl <- svytable(as.formula(paste0("~", var_name)), svy_obj)
+  # 提取该变量所有中文分类水平名称
+  level_names <- names(tbl)
+  # 计算该组总加权样本量
+  total_w <- sum(tbl)
+  # 计算每个分类水平的加权百分比，保留2位小数
+  pct <- round(tbl / total_w * 100, 2)
+  # 结构化返回结果，避免后续字符串拆分导致的水平与百分比错位
+  data.frame(
+    水平 = level_names,
+    频数 = round(as.numeric(tbl), 0),
+    百分比 = as.numeric(pct),
+    展示 = paste0(round(as.numeric(tbl), 0), " (", pct, "%)"),
+    stringsAsFactors = FALSE
+  )
+}
+
+# 函数功能：单个连续变量，根据全样本正态性，返回【均值±标准差】或【中位数(四分位数)】加权统计结果
+# 参数：var_name 连续变量名；svy_obj 分组抽样对象
+cont_svy_stat <- function(var_name, svy_obj) {
+  # 从全局抽样对象中提取完整数据集，用于整体正态性检验
+  dat_full <- svy_design$variables
+  x_full_vec <- dat_full[[var_name]]
+  w_full_vec <- dat_full[[weight_col]]
+  # 筛选变量、权重均无缺失的有效样本
+  idx_full <- !is.na(x_full_vec) & !is.na(w_full_vec)
+  x_full_clean <- x_full_vec[idx_full]
+  n_full <- length(x_full_clean)
+  # 有效样本不足2，直接返回提示文本，避免统计函数报错
+  if (n_full < 2) return("样本不足")
+  # 小样本(≤5000)使用Shapiro-Wilk正态检验；大样本正态检验无意义，直接判定非正态
+  if (n_full <= 5000) {
+    shap_p <- shapiro.test(x_full_clean)$p.value
+  } else {
+    shap_p <- 0
+  }
+  # 正态判定：P>0.05 符合正态分布
+  full_normal <- shap_p > 0.05
+  
+  # 提取当前分组数据集
+  dat_tmp <- svy_obj$variables
+  x_vec <- dat_tmp[[var_name]]
+  w_vec <- dat_tmp[[weight_col]]
+  idx <- !is.na(x_vec) & !is.na(w_vec)
+  x_clean <- x_vec[idx]
+  w_clean <- w_vec[idx]
+  n <- length(x_clean)
+  if (n < 2) return("样本不足")
+  
+  # 计算加权均值
+  mean_res <- svymean(as.formula(paste0("~", var_name)), svy_obj, na.rm = TRUE)
+  w_mean <- coef(mean_res)
+  
+  # 正态数据：返回 均值±标准差
+  if (full_normal) {
+    # 手动计算加权标准差
+    w_sd <- sqrt(sum(w_clean * (x_clean - w_mean)^2) / sum(w_clean))
+    return(paste0(round(w_mean, 2), " ± ", round(w_sd, 2)))
+    # 非正态数据：返回 中位数(下四分位数-上四分位数)
+  } else {
+    q_res <- svyquantile(as.formula(paste0("~", var_name)), svy_obj, c(0.25,0.5,0.75), na.rm=TRUE)
+    q1 <- q_res[[1]][1]  # 25%分位数
+    med <- q_res[[1]][2] # 50%分位数（中位数）
+    q3 <- q_res[[1]][3]  # 75%分位数
+    return(paste0(round(med,2), " (", round(q1,2), "-", round(q3,2), ")"))
+  }
+}
+
+# 函数功能：分类变量两组间差异检验，优先加权卡方，稀疏列联表使用Fisher精确检验，返回字符型P值
+get_cat_p <- function(var_name){
+  # 提取变量、分组、权重三列，删除缺失样本
+  sub <- df_valid[, c(var_name, group_col, weight_col)]
+  sub <- sub[complete.cases(sub), ]
+  # 按分类水平+糖尿病分组，聚合加权频数
+  tab <- aggregate(sub[[weight_col]], by=list(sub[[var_name]], sub[[group_col]]), FUN=sum)
+  colnames(tab) <- c("lev", "gr", "w")
+  # 长表转宽表，生成两组列联表矩阵
+  wide <- pivot_wider(tab, names_from=gr, values_from=w, values_fill=0)
+  mtx <- as.matrix(wide[,-1])
+  # 计算行列合计、总加权样本量、每个单元格期望频数
+  rs <- rowSums(mtx)
+  cs <- colSums(mtx)
+  tot <- sum(mtx)
+  exp <- outer(rs, cs)/tot
+  min_e <- min(exp)
+  
+  # 最小期望频数<5：Fisher精确检验
+  if(min_e < 5){
+    mtx_int <- round(mtx)
+    fisher_res <- fisher.test(mtx_int)
+    # 强制转为字符格式，统一表格列类型，防止bind_rows类型报错
+    return(as.character(round(fisher_res$p.value,4)))
+    # 最小期望频数≥5：优先使用survey包加权卡方检验
+  }else{
+    chi_res <- try(svychisq(as.formula(paste("~",var_name,"+",group_col)), svy_design), silent=TRUE)
+    if(!inherits(chi_res, "try-error")){
+      return(as.character(round(chi_res$p.value,4)))
+    }else{
+      # 加权卡方异常时，手动计算Pearson卡方P值兜底
+      chi_val <- sum((mtx-exp)^2 / exp)
+      df_chi <- (nrow(mtx)-1)*(ncol(mtx)-1)
+      p <- 1-pchisq(chi_val, df_chi)
+      return(as.character(round(p,4)))
+    }
+  }
+}
+
+# 函数功能：连续变量两组间差异检验，正态用加权t检验，非正态用加权Wilcoxon秩和检验，返回字符型P值
+get_con_p <- function(var_name){
+  sub <- df_valid[, c(var_name, group_col, weight_col)]
+  sub <- sub[complete.cases(sub), ]
+  n <- nrow(sub)
+  if(n < 2) return("样本过少")
+  x_clean <- sub[[var_name]]
+  # 小样本正态检验
+  if(length(x_clean) <= 5000){
+    shap_p <- shapiro.test(x_clean)$p.value
+  }else{
+    shap_p <- 0
+  }
+  # 正态：加权t检验
+  if(shap_p > 0.05){
+    t_res <- try(svyttest(as.formula(paste(var_name,"~",group_col)), svy_design), silent=TRUE)
+    if(!inherits(t_res, "try-error")){
+      return(as.character(round(t_res$p.value,4)))
+    }
+  }
+  # 非正态：加权Wilcoxon秩和检验
+  wt_res <- wilcox.test(formula(paste(var_name,"~",group_col)),data=sub,weights=sub[[weight_col]],exact=FALSE)
+  return(as.character(round(wt_res$p.value,4)))
+}
+
+# 初始化空列表存储每一行结果
+result_list <- list()
+# 行索引计数器，逐行新增数据
+row_idx <- 1
+
+# 遍历所有待分析变量（分类+连续）
+for (var_name in all_vars) {
+  
+  # 整段循环异常捕获，单个变量统计失败不中断整个表格生成
+  run_ok <- try({
+    # 判断当前变量是否为分类变量
+    if (var_name %in% cat_vars) {
+      # 分别计算非糖尿病组、糖尿病组该变量的加权统计结果
+      nd_df <- calc_cat_group(var_name, svy_nondiab)
+      dia_df <- calc_cat_group(var_name, svy_diab)
+      # 获取该变量两组比较P值
+      p_val <- get_cat_p(var_name)
+      
+      # 【第1行：变量标题行】仅展示变量名称与P值，两组统计列留白
+      result_list[[row_idx]] <- data.frame(
+        变量 = var_name,
+        分层 = "",
+        非糖尿病组 = "",
+        糖尿病组 = "",
+        P值 = p_val,
+        stringsAsFactors = FALSE
+      )
+      row_idx <- row_idx + 1
+      
+      # 读取该变量预先设置的全部中文因子水平，保证水平顺序、名称完全匹配
+      level_names <- levels(df_valid[[var_name]])
+      # 每个分类水平单独生成一行
+      for (lev in level_names) {
+        # 匹配当前水平对应的两组统计结果，避免字符串拆分错位
+        nd_val <- nd_df$展示[nd_df$水平 == lev]
+        dia_val <- dia_df$展示[dia_df$水平 == lev]
+        # 该水平无样本时填充0(0.00%)，防止空值缺失
+        if (length(nd_val) == 0) nd_val <- "0 (0.00%)"
+        if (length(dia_val) == 0) dia_val <- "0 (0.00%)"
+        
+        # 分类水平行：重复变量名、填写中文分层名称、两组加权统计，P值列空白
+        result_list[[row_idx]] <- data.frame(
+          变量 = var_name,
+          分层 = lev,
+          非糖尿病组 = nd_val,
+          糖尿病组 = dia_val,
+          P值 = "",
+          stringsAsFactors = FALSE
+        )
+        row_idx <- row_idx + 1
+      }
+      
+    } else {
+      # 当前变量为连续变量：仅单行展示
+      nd_val <- cont_svy_stat(var_name, svy_nondiab)
+      dia_val <- cont_svy_stat(var_name, svy_diab)
+      p_val <- get_con_p(var_name)
+      
+      result_list[[row_idx]] <- data.frame(
+        变量 = var_name,
+        分层 = "",
+        非糖尿病组 = nd_val,
+        糖尿病组 = dia_val,
+        P值 = p_val,
+        stringsAsFactors = FALSE
+      )
+      row_idx <- row_idx + 1
+    }
+  }, silent = TRUE)
+  
+  # 单个变量统计异常时，填充失败提示行
+  if (inherits(run_ok, "try-error")) {
+    message(paste0("警告：变量【", var_name, "】统计失败"))
+    result_list[[row_idx]] <- data.frame(
+      变量 = var_name,
+      分层 = "",
+      非糖尿病组 = "统计失败",
+      糖尿病组 = "统计失败",
+      P值 = "NA",
+      stringsAsFactors = FALSE
+    )
+    row_idx <- row_idx + 1
+  }
+}
+
+# 将列表内所有行数据合并为最终基线结果数据框
+# 所有列统一为字符类型，彻底规避数值/字符类型合并报错
+table1 <- dplyr::bind_rows(result_list)
+
+#===================== 表格输出设置 =====================
+# 加宽控制台输出宽度，防止表格横向折叠错乱
+options(width = 300)
+knitr::kable(table1,
+             caption = "表1 基线特征表",
+             booktabs = TRUE,
+             align = "ccccc")
+```
+
+##6.2 基线特征结果描述
+
+    人口学资料结果显示：两组性别、饮酒行为分布差异、饮食限制情况等无统计学意义（P＞0.05）；种族、受教育程度、婚姻状况、吸烟状态组间差异均有统计学意义（P＜0.001）。糖尿病组人群年龄显著高于非糖尿病组[62（53~70）岁vs46（33~62）岁，P＜0.001]，且高血压患病率（68.23%）明显高于非糖尿病组（26.40%）。
+    体格检查结果表明：糖尿病组家庭收入贫困比值、体质指数、腰围、收缩压等指标均高于非糖尿病组（P＜0.001），舒张压两组未见统计学差异（P=0.0678）。血常规指标中，淋巴细胞百分比、单核细胞百分比、中性粒细胞百分比、淋巴细胞绝对值、平均红细胞体积、红细胞分布宽度在两组间存在统计学差异（P＜0.05）。糖尿病组甘油三酯、低密度脂蛋白胆固醇、非高密度脂蛋白胆固醇、超敏C反应蛋白水平更高，高密度脂蛋白胆固醇水平更低，组间差异均具有统计学意义（P＜0.05）；总胆固醇、每日久坐时长两组比较无统计学差异（P＞0.05）。饮食相关因素中仅饮食相关补充项 3 在两组间分布存在统计学差异（P=0.0264）。
+
+#7 可视化结果
+
+##7.1 连续变量加权箱线图
+
+```{r, echo=FALSE,message=F,fig.height=35,out.height="600px"}
+# 绘图全部代码不变
+# 构建有序分组因子，固定图表展示顺序：非糖尿病在前，糖尿病在后
+df_valid$分组 <- factor(
+  ifelse(df_valid$`是否确诊糖尿病` == 1, "糖尿病", "非糖尿病"),
+  levels = c("非糖尿病", "糖尿病")
+)
+# 将连续变量数据集进行宽格式转长格式，方便ggplot批量绘制多指标箱线图
+df_long <- pivot_longer(
+  data = df_valid,         # 输入清洗后的有效数据集
+  cols = cont_vars,        # 指定需要转换的所有连续型变量
+  names_to = "检测指标",   # 原数据的列名存入检测指标
+  values_to = "指标数值"   # 原数据对应的数值存入指标数值
+)
+
+# 绘制加权箱线图，基于抽样权重wt进行加权展示多组连续指标分布
+p_box<- ggplot(df_long, aes(x = 分组, y = 指标数值, weight = wt, fill = 分组)) +
+  # 箱线图美化：加宽箱体线条、统一轮廓色，异常点缩小弱化
+  geom_boxplot(
+    alpha = 0.7,
+    outlier.color = "#c82423",
+    outlier.size = 0.4,
+    outlier.alpha = 0.6,
+    linewidth = 0.6,
+    color = "black"
+  ) +
+  # 分面：每行4个子图，Y轴自由缩放，分面标题加粗
+  facet_wrap(~检测指标, ncol = 4, scales = "free_y") +
+  # 配色：医学期刊经典低饱和配色，区分两组
+  scale_fill_manual(values = c("#6699cc", "#e67e22")) +
+  # 坐标轴、图例标题规范
+  labs(
+    x = "研究分组",
+    y = "指标测量值",
+    fill = "分组",
+    title = "图1 连续变量加权分布箱线图"
+  ) +
+  # 白底学术主题，统一字体大小
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"), # 总标题居中加粗
+    strip.text = element_text(size = 11, face = "bold"), # 分面指标标题加粗
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10), # X轴文字旋转防重叠
+    axis.text.y = element_text(size = 10),
+    legend.position = "bottom", # 图例底部
+    legend.title = element_text(size = 11, face = "bold"),
+    legend.text = element_text(size = 10),
+    panel.grid = element_line(linewidth = 0.2, color = "gray90") # 浅灰色网格辅助读数
+  )
+
+print(p_box)
+ggsave(
+  "C:/Users/86156/Desktop/图1箱线图.tiff",
+  p_box,
+  width = 16,
+  height = 20,
+  dpi = 600,
+  device = grDevices::tiff
+)
+```
+
+##7.2 分类变量加权柱状图
+
+```{r, echo=FALSE,message=F}
+# 宽格式数据集转换为长格式数据集，用于批量绘制多个分类变量的柱状图
+df_long_cat <- pivot_longer(
+  data = df_valid,         # 输入清洗完成的分析数据集
+  cols = all_of(cat_vars), # 选取预先定义好的全部分类变量，all_of 可避免变量名不存在时报错
+  names_to = "分类指标",   # 将原始数据的列名保存到分类指标
+  values_to = "分类水平"   # 原始数据中每个分类变量对应的类别取值存入分类水平
+)
+
+# 加权并列柱状图，实现加权频数统计
+p_bar <- ggplot(df_long_cat, aes(x = 分类水平, weight = wt, fill = 分组)) +
+  geom_col(stat = "count", position = position_dodge(width = 0.8), width = 0.7, alpha = 0.7) +
+  facet_wrap(~分类指标, ncol = 4, scales = "free") +
+  # 指定两组配色
+  scale_fill_manual(values = c("#6699cc", "#e67e22")) +
+  labs(x = "分类水平", y = "加权频数", fill = "研究分组") +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 2),
+    legend.position = "bottom"
+  )
+
+print(p_bar)
+
+# 保存高清图
+ggsave("C:/Users/86156/Desktop/图2柱状图.tiff", p_bar, width = 16, height = 12, dpi = 600,
+  device = grDevices::tiff)
+```
+
+#8 加权 Logistic 回归分析
+
+##8.1 单因素 Logistic 回归
+
+```{r, echo=FALSE,message=F}
+# 初始化空数据框
+uni_result <- data.frame(
+  变量 = character(),
+  分层 = character(),
+  OR = numeric(),
+  CI95_L = numeric(),
+  CI95_U = numeric(),
+  P数值 = numeric()
+)
+
+# 循环遍历全部自变量
+for (var in all_vars) {
+  formula_uni <- as.formula(paste("y ~", var))
+  fit <- try(
+    svyglm(formula_uni, design = svy_design, family = quasibinomial()),
+    silent = FALSE
+  )
+  if (inherits(fit, "try-error")) {
+    message(paste0("警告：变量【", var, "】建模异常，已自动跳过"))
+    next
+  }
+  coef_tab <- coef(summary(fit))
+  ci_tab <- confint(fit)
+  rows <- rownames(coef_tab)[-1]
+  if (length(rows) == 0) next
+  
+  temp <- data.frame(
+    变量 = var,
+    分层 = rows,
+    OR = round(exp(coef_tab[-1, 1]), 3),
+    CI95_L = round(exp(ci_tab[-1, 1]), 3),
+    CI95_U = round(exp(ci_tab[-1, 2]), 3),
+    P数值 = format(round(coef_tab[-1, 4], 4), scientific = FALSE, digits = 4)
+  )
+  uni_result <- rbind(uni_result, temp)
+}
+
+# 单因素后处理：保留原始变量名、P数值，供多因素筛选使用；仅新增展示列
+uni_result <- uni_result %>%
+  mutate(
+    `95%CI` = paste0(CI95_L, "-", CI95_U),
+    P数值_num = as.numeric(P数值),
+    P值 = case_when(
+      P数值_num < 0.001 ~ paste0(P数值, "***"),
+      P数值_num < 0.01  ~ paste0(P数值, "**"),
+      P数值_num < 0.05  ~ paste0(P数值, "*"),
+      TRUE ~ as.character(P数值)
+    )
+  )
+
+knitr::kable(
+  uni_result[, c("变量",  "OR", "95%CI", "P值")],
+  caption = "表2 单因素加权Logistic回归结果",
+  booktabs = TRUE,
+  col.names = c("变量","OR", "95%CI", "P值"),
+  align = "cccc",
+  row.names = FALSE
+)
+```
+
+##8.2 单因素结果描述
+
+    结果显示，性别、既往饮酒状态、饮食限制情况、饮食相关补充项1、饮食相关补充项2、淋巴细胞百分比、嗜碱性粒细胞百分比、红细胞计数、血小板计数、超敏C反应蛋白、每日久坐时长、舒张压与糖尿病患病无统计学关联（P＞0.05）；种族分类中非西班牙裔黑人、婚姻状况丧偶、吸烟、高血压患病、饮食相关补充项3、年龄、家庭收入贫困比值、体质指数、上臂围、腰围、臀围、收缩压、白细胞计数、单核细胞百分比、中性粒细胞百分比、嗜酸性粒细胞百分比、淋巴细胞绝对值、单核细胞绝对值、中性粒细胞绝对值、血红蛋白、红细胞压积、平均红细胞体积、平均红细胞血红蛋白含量、红细胞分布宽度、平均血小板体积、总胆固醇、甘油三酯、高密度脂蛋白胆固醇、低密度脂蛋白胆固醇、计算法低密度脂蛋白胆固醇、非高密度脂蛋白胆固醇共30项指标与糖尿病患病存在统计学关联（P＜0.05）。其中年龄、体质指数、腰围、收缩压、甘油三酯、各类白细胞计数等指标升高会显著提升糖尿病患病风险，更高的受教育程度、家庭收入水平、高密度脂蛋白胆固醇等因素可降低糖尿病患病概率，后续将把上述具有统计学意义的变量纳入多因素加权 Logistic 回归模型，在校正混杂因素后进一步筛选糖尿病的独立危险因素。
+
+##8.3 多重共线性（VIF）检验与多因素回归
+
+```{r, echo=FALSE,message=F}
+# 筛选单因素P<0.05的显著变量
+sig_uni <- uni_result[uni_result$P数值_num < 0.05, ]
+sig_vars <- unique(sig_uni$变量)
+
+# 初始化多因素结果对象
+multi_result <- NULL
+# 强制纳入混杂变量（仅原始列名，无分层文字）
+confounder_vars <- c("年龄岁", "性别", "种族分类1", "受教育程度")
+# 提前合并变量，仅存放数据集原生列名
+model_vars <- unique(c(confounder_vars, sig_vars))
+
+if (length(sig_vars) > 0) {
+  # ---------- VIF多重共线性检验 ----------
+  # all_of安全匹配列，不存在变量仅提示不直接中断
+  df_vif <- df_valid[, all_of(c("y", model_vars))]
+  df_vif <- na.omit(df_vif)
+  vif_form <- as.formula(paste("y ~", paste(model_vars, collapse = "+")))
+  vif_lm <- lm(vif_form, data = df_vif)
+  vif_result <- car::vif(vif_lm)
+  cat("========== 各变量VIF多重共线性检验结果 ==========\n")
+  print(vif_result)
+  
+  # ---------- 多因素加权Logistic回归建模 ----------
+  multi_form <- as.formula(paste("y ~", paste(model_vars, collapse = "+")))
+  multi_fit <- svyglm(multi_form, design = svy_design, family = quasibinomial())
+  
+  multi_coef <- coef(summary(multi_fit))
+  multi_ci <- confint(multi_fit)
+  
+  # 构建多因素结果数据框，列名风格与单因素完全统一
+  multi_result <- data.frame(
+    变量 = rownames(multi_coef),
+    OR = round(exp(multi_coef[, 1]), 3),
+    CI95_L = round(exp(multi_ci[, 1]), 3),
+    CI95_U = round(exp(multi_ci[, 2]), 3),
+    P_raw = sprintf("%.4f", as.numeric(multi_coef[, 4])) # sprintf强制固定4位小数
+  )
+  
+  multi_result <- multi_result %>%
+    filter(变量 != "(Intercept)") %>%
+    mutate(
+      # 拼接CI文本，全程保留CI95_L、CI95_U数值列
+      `95%CI文本` = paste0(sprintf("%.3f", CI95_L), "-", sprintf("%.3f", CI95_U)),
+      P数值_num = as.numeric(P_raw),
+      P值 = case_when(
+        P数值_num < 0.001 ~ paste0(P_raw, "***"),
+        P数值_num < 0.01  ~ paste0(P_raw, "**"),
+        P数值_num < 0.05  ~ paste0(P_raw, "*"),
+        TRUE ~ P_raw
+      )
+    )
+  
+
+  # 三线表输出：四列、全部居中、无行号、格式与单因素统一
+  knitr::kable(
+    multi_result[, c("变量", "OR", "95%CI文本", "P值")],
+    caption = "表3 多因素加权Logistic回归结果",
+    booktabs = TRUE,
+    col.names = c("变量", "校正OR", "95%CI", "P值"),
+    align = "cccc",
+    row.names = FALSE
+  )
+} else {
+  message("提示：单因素无显著变量，不执行多因素建模")
+}
+```
+
+##8.4 多因素结果描述
+
+    将单因素分析中P＜0.05 的变量纳入多因素加权Logistic回归模型，校正混杂因素后筛选成人糖尿病独立危险因素，检验水准α=0.05。结果显示，年龄、受教育程度、高血压患病史、体质指数、腰围、臀围、平均红细胞体积、平均血小板体积、低密度脂蛋白胆固醇、计算法低密度脂蛋白胆固醇是糖尿病发生的独立影响因素（P＜0.05）；其中年龄每升高1岁，糖尿病患病风险提升4.8%（OR=1.048，95%CI：1.032~1.064，P＜0.001）；相较于初中以下学历，9~11年级、高中毕业/GED、大专、本科及以上学历人群糖尿病患病风险分别降至0.357倍、0.364倍、0.364倍、0.181倍（均P＜0.05）；合并高血压会使糖尿病患病风险提升107.9%（OR=2.079，95%CI：1.302~3.329，P＜0.001）；BMI、腰围、平均血小板体积每升高1个单位，患病风险分别上升11.1%、4.5%、24.3%（均P＜0.05），臀围、平均红细胞体积升高则可降低糖尿病患病发生风险（P＜0.05）；低密度脂蛋白胆固醇、计算法低密度脂蛋白胆固醇同样为糖尿病独立危险因素（均P＜0.001），而性别、种族、婚姻状况、吸烟、饮食相关因素、多数血常规及血脂指标经混杂校正后与糖尿病患病无统计学关联（P＞0.05）。
+
+##8.5 单因素回归森林图
+
+```{r, echo=FALSE,message=F, fig.width=15, fig.height=35}
+# 自定义森林图全局可视化主题参数，统一设置字体、置信区间样式、参考线格式，保证图表符合学术绘图规范
+tm <- forest_theme(
+  base_size = 15,                
+  ci_col = "#453781",           
+  fill_ci_col = "#8E82FE",      
+  refline_gp = gpar(col = "red", lwd = 1), 
+  arrow_type = "closed"          
+)
+# 基于单因素回归结果数据集拼接置信区间文本格式，新增空白占位列用于置信区间水平线条布局，整理绘图表格数据
+dt_uni <- uni_result %>%
+  mutate(
+    `OR(95%CI)` = paste0(sprintf("%.3f", OR), "(", sprintf("%.3f", CI95_L), "-", sprintf("%.3f", CI95_U), ")"),
+    CI_占位 = paste(rep(" ", 30), collapse = " ")
+  ) %>%
+  select(变量, `OR(95%CI)`, CI_占位, P值)
+# 重命名数据框列名，规范表格展示列标题
+colnames(dt_uni) <- c("变量", "OR(95%CI)", "CI_占位", "P值")
+
+# 调用forestploter包绘制单因素回归效应森林图
+p1 <- forest(
+  data = dt_uni,
+  ci_column = 3,                 
+  est = uni_result$OR,            
+  lower = uni_result$CI95_L,      
+  upper = uni_result$CI95_U,      
+  ref_line = 1,                   
+  xlim = c(0, 10),                 
+  ticks_at = c(0, 1, 2, 5, 10), 
+  xlab = "Odds Ratio",            
+  theme = tm,
+   padding = unit(c(3, 2, 3, 2), "cm")
+)
+
+
+grid::grid.draw(p1)
+ggsave(
+  "C:/Users/86156/Desktop/图3单因素Logistic森林图.tiff",
+  plot = p1, 
+  width = 15, 
+  height = 35,
+  dpi = 600,
+  device = grDevices::tiff
+)
+```
+
+##8.6 多因素回归森林图
+
+```{r, echo=FALSE,message=F, fig.width=15, fig.height=35}
+# 仅当多因素回归结果存在时，执行多因素森林图绘制流程
+if (!is.null(multi_result)) {
+  # 第一步：先剔除截距，保留全部数值列（OR、CI95_L、CI95_U、P数值）
+  dt_multi_raw <- multi_result %>%
+    filter(变量 != "(Intercept)")
+  
+  # 第二步：基于完整原始数值拼接置信区间文本，不会找不到CI95_L
+  dt_multi <- dt_multi_raw %>%
+    mutate(
+      `校正OR(95%CI)` = paste0(sprintf("%.3f", OR), "(", sprintf("%.3f", CI95_L), "-", sprintf("%.3f", CI95_U), ")"),
+      CI_占位 = paste(rep(" ", 25), collapse = " ")
+    ) %>%
+    select(变量, `校正OR(95%CI)`, CI_占位, P值)
+  
+  colnames(dt_multi) <- c("变量", "校正OR(95%CI)", "CI_占位", "P值")
+  
+  # 绘图用数值数据直接使用过滤后的原始数据集
+  multi_data <- dt_multi_raw
+  
+  # 绘制校正混杂因素后的多因素回归森林图，沿用全局绘图主题与横轴布局设置
+  p2 <- forest(
+    data = dt_multi,
+    ci_column = 3,
+    est = multi_data$OR,
+    lower = multi_data$CI95_L,
+    upper = multi_data$CI95_U,
+    ref_line = 1,
+    xlim = c(0, 10),
+    ticks_at = c(0, 1, 2, 5, 10),
+    xlab = "Adjusted Odds Ratio", # 设置横轴标签为校正比值比
+    theme = tm
+  )
+  
+  # 输出绘图
+  grid::grid.draw(p2)
+  # 指定原生tiff绘图设备，规避ragg版本冲突报错
+  ggsave(
+    "C:/Users/86156/Desktop/图4多因素Logistic森林图.tiff",
+    plot = p2,
+    width = 12,
+    height = 35,
+    dpi = 600,
+    device = grDevices::tiff
+  )
+}
+```
+#9 敏感性分析：1%-99% Winsor 双侧缩尾加权 Logistic 回归
+
+##9.1 极端值缩尾处理与加权回归建模
+
+```{r, echo=FALSE,message=F}
+# 自定义Winsor缩尾函数
+winsor <- function(x, lower_p = 0.01, upper_p = 0.99) {
+  q_lower <- quantile(x, probs = lower_p, na.rm = TRUE)
+  q_upper <- quantile(x, probs = upper_p, na.rm = TRUE)
+  x <- ifelse(x < q_lower, q_lower, x)
+  x <- ifelse(x > q_upper, q_upper, x)
+  return(x)
+}
+# 读取数据集
+df_sens <- read_excel("C:/Users/86156/Desktop/糖尿病权重.xlsx")
+df_sens$y <- ifelse(df_sens$`是否确诊糖尿病` == 1, 1, 0)
+# 复用全局分类、连续变量
+cont_vars_sens <- cont_vars
+cat_vars_sens <- cat_vars
+# 分类变量转因子
+for (v in cat_vars_sens) {
+  df_sens[[v]] <- factor(df_sens[[v]])
+}
+# 筛选有效样本
+df_sens_valid <- df_sens[!is.na(df_sens$wt) & !is.na(df_sens$y), ]
+# 1%-99%缩尾
+for (v in cont_vars_sens) {
+  df_sens_valid[[v]] <- winsor(df_sens_valid[[v]], lower_p = 0.01, upper_p = 0.99)
+}
+# 新建抽样设计
+svy_sens <- svydesign(ids = ~1, weights = ~wt, data = df_sens_valid)
+
+sens_form <- as.formula(paste("y ~", paste(model_vars, collapse = "+")))
+# 加权Logistic回归
+fit_sens <- svyglm(
+  formula = sens_form,
+  design = svy_sens,
+  family = quasibinomial
+)
+
+# 提取模型回归系数汇总结果
+coef_sens <- coef(summary(fit_sens))
+ci_sens <- confint(fit_sens)
+
+res_sens <- data.frame(
+  变量 = rownames(coef_sens),
+  OR = round(exp(coef_sens[, 1]), 3),
+  下限95CI = round(exp(ci_sens[, 1]), 3),
+  上限95CI = round(exp(ci_sens[, 2]), 3),
+  P数值 = as.numeric(coef_sens[, 4])
+)
+
+res_sens <- res_sens %>%
+  filter(变量 != "(Intercept)") %>%
+  mutate(
+    # CI固定3位小数
+    `95%CI` = paste0(sprintf("%.3f", 下限95CI), "-", sprintf("%.3f", 上限95CI)),
+    # sprintf("%.4f") 强制固定4位小数，不足补0
+    P_4dec = sprintf("%.4f", P数值),
+    P值 = case_when(
+      P数值 < 0.001 ~ paste0(P_4dec, "***"),
+      P数值 < 0.01  ~ paste0(P_4dec, "**"),
+      P数值 < 0.05  ~ paste0(P_4dec, "*"),
+      TRUE ~ P_4dec
+    )
+  ) %>%
+  select(变量, OR, `95%CI`, P值)
+
+# 导出Excel
+write_xlsx(res_sens, "C:/Users/86156/Desktop/表4敏感性分析结果.xlsx")
+
+# 三线表
+knitr::kable(
+  res_sens,
+  caption = "表4 1%-99%敏感性分析加权Logistic回归结果",
+  booktabs = TRUE,
+  col.names = c("变量", "OR", "95%CI", "P值"),
+  align = "cccc",
+  row.names = FALSE
+)
+```
+
+#10 局限性
+
+    1.横断面数据限制：NHANES 为横断面调查，仅能证明变量与糖尿病存在关联，无法推导因果时序，不能确定危险因素与发病的先后顺序；
+    2.外推局限：数据基于美国成年人群，人种、饮食、医疗体系与国内人群存在差异，结论不能直接完全推广至中国居民。
+
+#11 个人总结
+
+    本次研究完整掌握了 NHANES 复杂抽样数据库的标准化分析流程，熟练运用R语言完成数据清洗、加权描述统计、批量可视化、加权Logistic回归、多重共线性检验、森林图绘制等流行病学统计方法。研究证实腹型肥胖、高龄、高血压、低学历、异常低密度脂蛋白是成人糖尿病稳定独立危险因素，提示公共卫生防控需重点关注中老年腹型肥胖、高血压人群，开展分层健康宣教与体重、血脂干预。同时本次研究也认识到横断面研究的因果推断缺陷，后续可使用队列数据库进一步验证危险因素因果关系；并增加分层交互分析，探索不同性别、种族人群的糖尿病风险差异，进一步完善研究深度。在代码实操层面，解决了加权统计、长格式批量绘图、极端值处理、多模型稳健性验证等实操难点，提升了大样本公共卫生数据库统计分析能力。

@@ -7,7 +7,7 @@
 |------|------|
 | 项目名称 |吸烟与成年人高血压患病的相关性分析-基于NHANES的横断面研究|
 | 数据来源 | NHANES 2017-2018 |
-| 分析样本量 | 5,165 人 |
+| 分析样本量 | 5,155 人 |
 | 研究对象 | 美国成年人（年龄 ≥ 20 岁）|
 
 ---
@@ -44,10 +44,10 @@
 | hypertension | 高血压（综合定义）| 分类 | 0=无高血压，1=有高血压 | 实测血压（BPXS1Y-3Y, BPXDI1-3Y）或 BPQ020 |
 | smoking | 吸烟状态（三分类）| 分类 | Never=从不吸烟，Former=曾经吸烟（已戒烟），Current=当前吸烟 | SMQ020 + SMQ040 |
 | gender | 性别 | 分类 | Male=男性，Female=女性 | RIAGENDR |
-| age_group | 年龄分组 | 分类 | 20-39，40-59，60+ | RIDAGEYR |
+| age_group | 年龄分组 | 分类 | ≤60，>60 | RIDAGEYR |
 | race | 种族（合并后）| 分类 | Mexican American，Other Hispanic，Non-Hispanic White，Non-Hispanic Black，Non-Hispanic Asian，Other | RIDRETH3 |
 | bmi_group | BMI分组 | 分类 | Underweight (<18.5)，Normal (18.5-24.9)，Overweight (25-29.9)，Obese (≥30) | BMXBMI |
-| education | 教育水平分组 | 分类 | Below high school，High school or above | DMDEDUC2 |
+| education | 教育水平分组 | 分类 | College or above，High school，Below high school| DMDEDUC2 |
 | pir_group | 收入水平分组 | 分类 | Low (<2)，Middle (2-4)，High (>4) | INDFMPIR |
 
 

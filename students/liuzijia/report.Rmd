@@ -1,0 +1,294 @@
+---
+title: "孤独症儿童睡眠特征与褪黑素水平的关联性分析"
+author: "刘子佳"
+date: "2026-07-10"
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    code_folding: show
+  pdf_document:
+    toc: true
+  word_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, 
+                      fig.width = 8, fig.height = 5, fig.align = "center")
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(patchwork)   
+```
+# 1. 研究背景
+
+孤独症谱系障碍（ASD）是一种神经发育障碍，全球儿童患病率约1%-2%。睡眠障碍是其最常见共病之一，发生率高达50%-80%，表现为入睡困难、夜间觉醒、睡眠时间缩短等。褪黑素是调节昼夜节律的核心激素，ASD儿童常存在褪黑素分泌节律异常，但其与睡眠特征的具体关联尚不明确。本研究基于横断面设计，探讨ASD儿童睡眠特征与清晨血清褪黑素水平的关系，并重点考察年龄对关联的影响。
+
+# 2. 研究问题
+
+- ASD伴睡眠障碍与不伴睡眠障碍儿童在CSHQ各维度得分及血清褪黑素水平上是否存在差异？
+- 血清褪黑素水平与CSHQ总分、各维度得分及睡眠时长是否相关？
+- 这种关联是否随年龄变化（年龄分层分析）？
+
+# 3. 数据来源与研究对象
+
+研究对象为2~15岁ASD儿童，来自残联、特教学校及康复机构。共收集140份有效问卷及清晨空腹血样。依据CSHQ总分>41分为睡眠障碍组（n=124），≤41分为非障碍组（n=16）。
+
+# 4. 变量说明
+
+| 变量名 | 类型 | 说明 |
+|--------|------|------|
+| group | 二分类 | 1=伴睡眠障碍，2=不伴睡眠障碍 |
+| age | 连续 | 年龄（岁） |
+| gender | 二分类 | 1=男，2=女 |
+| mel | 连续 | 血清褪黑素浓度（pg/mL） |
+| CSHQ总分 | 连续 | 睡眠问题总评分 |
+| 八个维度 | 连续 | 就寝习惯、入睡潜伏、睡眠持续时间、睡眠焦虑、夜醒、异态睡眠、睡眠呼吸障碍、白天嗜睡 |
+| 睡眠时长 | 连续 | 工作日/周末夜晚及总时长 |
+| 异常指标 | 二分类 | 各维度是否超过异常界值 |
+| sleep_standard | 二分类 | 睡眠时长是否达标（基于AASM推荐） |
+
+# 5. 数据清洗
+
+- **数据处理**：使用R 4.3，tidyverse包进行清洗和转换。数据清洗包括重命名列、删除冗余变量、转换分类变量为因子、定义后续分析常用的变量列表。
+- **统计方法**：因多数变量偏态，采用Mann-Whitney U检验比较两组间差异，Kruskal-Wallis检验比较多组；分类变量使用卡方或Fisher精确检验；相关分析采用Spearman秩相关。年龄分层分析按2-3、4-5、6-7、8-15岁四组分别计算。
+- **可视化**：箱线图展示两组褪黑素分布，散点图展示年龄分层相关性。
+
+```{r data-load}
+# 
+df <- read.csv("C:/Users/hp/Desktop/论文数据/数据库的最终版.csv", fileEncoding = "UTF-8")
+
+colnames(df) <- c(
+  "group", "agegroup1", "agegroup2", "age", "gender", "mel1", "mel",
+  "sleep_weeknight", "sleep_total_weekday", "sleep_weekend_night", "sleep_total_weekend",
+  "CSHQ_total", "bedtime_resistance", "sleep_onset_delay", "sleep_duration",
+  "sleep_anxiety", "night_waking", "parasomnia", "sleep_breathing", "daytime_sleepiness",
+  "filter", "bedtime_abnormal", "onset_abnormal", "duration_abnormal",
+  "anxiety_abnormal", "nightwaking_abnormal", "parasomnia_abnormal",
+  "breathing_abnormal", "daytime_abnormal", "sleep_standard"
+)
+df <- df %>% select(-mel1, -filter) %>%
+  mutate(
+    group_f = factor(group, 1:2, c("伴睡眠障碍","不伴睡眠障碍")),
+    gender_f = factor(gender, 1:2, c("男","女")),
+    agegroup_f = factor(agegroup1, 1:4, c("2-3岁","4-5岁","6-7岁","8-15岁")),
+    sleep_standard_f = factor(sleep_standard, 1:0, c("达标","未达标"))
+  )
+dims <- c("bedtime_resistance","sleep_onset_delay","sleep_duration","sleep_anxiety",
+          "night_waking","parasomnia","sleep_breathing","daytime_sleepiness")
+dims_cn <- c("就寝习惯","入睡潜伏","睡眠持续时间","睡眠焦虑","夜醒","异态睡眠","睡眠呼吸障碍","白天嗜睡")
+abn <- c("bedtime_abnormal","onset_abnormal","duration_abnormal","anxiety_abnormal",
+         "nightwaking_abnormal","parasomnia_abnormal","breathing_abnormal","daytime_abnormal")
+sleep_vars <- c("sleep_weeknight","sleep_total_weekday","sleep_weekend_night","sleep_total_weekend")
+sleep_cn <- c("工作日夜晚睡眠时长","工作日总睡眠时长","周末夜晚睡眠时长","周末总睡眠时长")
+
+```
+
+# 6.描述性统计
+# 6.1 研究对象基本特征
+共140例，男性109（77.9%），女性31（22.1%）；睡眠障碍组124例（88.6%）。两组性别分布无差异（p=1.000），但年龄分布有显著差异（伴障碍组中位6.0岁，不伴组中位6.0岁，但秩均值有差异，p=0.024），提示后续需控制年龄。
+
+# 6.2睡眠特征比较
+
+```{r}
+
+# 各维度总体描述
+tab_desc <- data.frame(
+  维度 = dims_cn,
+  中位数 = sapply(df[dims], function(x) round(median(x, na.rm = TRUE), 2)),
+  IQR = sapply(df[dims], function(x) round(IQR(x, na.rm = TRUE), 2)),
+  最小值 = sapply(df[dims], function(x) round(min(x, na.rm = TRUE), 2)),
+  最大值 = sapply(df[dims], function(x) round(max(x, na.rm = TRUE), 2))
+)
+kable(tab_desc, caption = "表1 CSHQ各维度得分总体描述", digits = 2)
+
+# 两组比较
+comp_vars <- c(dims, "mel")
+comp_cn <- c(dims_cn, "血清褪黑素(pg/mL)")
+tab_compare <- data.frame(
+  变量 = comp_cn,
+  伴障碍组 = sapply(comp_vars, function(col) {
+    med <- df %>% filter(group_f == "伴睡眠障碍") %>% pull(!!sym(col)) %>% median(na.rm = TRUE)
+    iqr <- df %>% filter(group_f == "伴睡眠障碍") %>% pull(!!sym(col)) %>% IQR(na.rm = TRUE)
+    paste0(round(med, 1), " (", round(iqr, 1), ")")
+  }),
+  不伴障碍组 = sapply(comp_vars, function(col) {
+    med <- df %>% filter(group_f == "不伴睡眠障碍") %>% pull(!!sym(col)) %>% median(na.rm = TRUE)
+    iqr <- df %>% filter(group_f == "不伴睡眠障碍") %>% pull(!!sym(col)) %>% IQR(na.rm = TRUE)
+    paste0(round(med, 1), " (", round(iqr, 1), ")")
+  }),
+  U = sapply(comp_vars, function(col) {
+    res <- wilcox.test(df[[col]] ~ df$group_f, exact = FALSE)
+    round(res$statistic, 2)
+  }),
+  P = sapply(comp_vars, function(col) {
+    res <- wilcox.test(df[[col]] ~ df$group_f, exact = FALSE)
+    round(res$p.value, 4)
+  })
+)
+kable(tab_compare, caption = "表2 两组CSHQ各维度及褪黑素比较 [中位数(IQR)]", digits = 3)
+
+```
+
+结果显示，除夜醒外，其余七个维度得分在伴障碍组均显著高于不伴组（p均<0.05），其中就寝习惯、白天嗜睡、睡眠持续时间和异态睡眠差异最大。两组褪黑素水平无显著差异（p=0.924）。
+
+# 7.数据可视化
+
+```{r}
+
+# 图1：两组褪黑素箱线图
+p1 <- ggplot(df, aes(x = group_f, y = mel, fill = group_f)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Set2") +
+  labs(x = "", y = "血清褪黑素 (pg/mL)", 
+       title = "图1：ASD伴与不伴睡眠障碍儿童褪黑素水平") +
+  theme_minimal() +
+  theme(legend.position = "none", 
+        plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# 图2：6-7岁组散点图
+df_6_7 <- df %>% filter(agegroup_f == "6-7岁")
+p2 <- ggplot(df_6_7, aes(x = CSHQ_total, y = mel)) +
+  geom_point(color = "#2c3e50") +
+  geom_smooth(method = "lm", se = TRUE, color = "#e74c3c", fill = "#f1c40f") +
+  labs(x = "CSHQ总分", y = "褪黑素 (pg/mL)", 
+       title = "图2 6-7岁组CSHQ总分与褪黑素的相关性") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# 并排显示
+library(patchwork)
+p1 + p2 + plot_annotation(tag_levels = 'A')
+
+# 图3：年龄分层散点图分面 
+# 该图展示四个年龄组内CSHQ总分与褪黑素的相关趋势，重点突出6-7岁组的正相关
+
+library(ggplot2)
+library(dplyr)
+
+p3 <- ggplot(df, aes(x = CSHQ_total, y = mel, color = group_f)) +
+  geom_point(alpha = 0.7, size = 2) +                     # 散点
+  geom_smooth(method = "lm", se = TRUE, aes(fill = group_f), alpha = 0.2) +  # 线性回归拟合线
+  facet_wrap(~ agegroup_f, scales = "free", nrow = 2) +   # 按年龄组分面，自由坐标轴
+  labs(
+    title = "图3 不同年龄组CSHQ总分与褪黑素的相关性",
+    x = "CSHQ总分", 
+    y = "血清褪黑素 (pg/mL)",
+    color = "分组"
+  ) +
+  scale_color_brewer(palette = "Set1") +   # 颜色方案
+  scale_fill_brewer(palette = "Set1") +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "bottom",
+    strip.text = element_text(face = "bold")   # 分面标题加粗
+  )
+
+print(p3)
+```
+
+
+# 8.统计分析结果
+整体样本中，褪黑素与CSHQ总分及所有维度、睡眠时长均无显著相关（p均>0.05）。
+
+年龄分层后（关键发现）：
+
+6-7岁组：CSHQ总分（r=0.357, p=0.003）和白天嗜睡（r=0.288, p=0.019）与褪黑素呈显著正相关。
+
+其他年龄组未见显著相关。
+
+```{r}
+#年龄分层相关性分析
+# ===== 表3：CSHQ总分与褪黑素年龄分层相关性 =====
+age_lab <- c("2-3岁", "4-5岁", "6-7岁", "8-15岁")
+cor_results <- data.frame(年龄组 = age_lab, n = NA, r = NA, P = NA)
+
+for (i in seq_along(age_lab)) {
+  sub <- df %>% filter(agegroup_f == age_lab[i])
+  if (nrow(sub) >= 3) {
+    ct <- cor.test(sub$mel, sub$CSHQ_total, method = "spearman", exact = FALSE)
+    cor_results[i, c("n", "r", "P")] <- c(nrow(sub), round(ct$estimate, 3), round(ct$p.value, 4))
+  } else {
+    cor_results[i, c("n", "r", "P")] <- c(nrow(sub), NA, NA)
+  }
+}
+cor_results$r <- ifelse(is.na(cor_results$r), "-", sprintf("%.3f", cor_results$r))
+cor_results$P <- ifelse(is.na(cor_results$P), "-", sprintf("%.4f", cor_results$P))
+
+kable(cor_results, 
+      caption = "表3 不同年龄组CSHQ总分与褪黑素的相关性",
+      align = "c",
+      col.names = c("年龄组", "样本量", "相关系数 r", "P值"),
+      format = "html") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, font_size = 12) %>%
+  column_spec(1, width = "6em") %>%
+  column_spec(2, width = "4em") %>%
+  column_spec(3, width = "6em") %>%
+  column_spec(4, width = "6em")
+  
+# 年龄分层后各维度与褪黑素的相关性      
+# ===== 表4：年龄分层相关性 =====
+age_groups <- c("2-3岁","4-5岁","6-7岁","8-15岁")
+
+res <- matrix("", length(dims), length(age_groups), dimnames = list(dims_cn, age_groups))
+# 初始化字符矩阵，用于存放 "r (p)" 格式
+for (i in seq_along(dims)) {
+  for (j in seq_along(age_groups)) {
+    sub <- df[df$agegroup_f == age_groups[j], ]
+    if (nrow(sub) >= 3) {
+      ct <- tryCatch(cor.test(sub[[dims[i]]], sub$mel, method = "spearman", exact = FALSE),
+                     error = function(e) NULL)
+      if (!is.null(ct)) {
+        r <- round(ct$estimate, 3)
+        p <- round(ct$p.value, 4)
+        # 若 p 值极小，可显示为 "<0.0001"，这里统一保留4位小数
+        res[i, j] <- paste0(sprintf("%.3f", r), " (", sprintf("%.4f", p), ")")
+      }
+    }
+  }
+}
+# 将空字符串（未计算或失败）替换为 "-"
+res[res == ""] <- "-"
+
+# 转换为数据框
+tab14 <- data.frame(维度 = rownames(res), res, row.names = NULL, check.names = FALSE)
+
+# 输出表格
+kable(tab14, 
+      caption = "表4 年龄分层后CSHQ各维度得分与褪黑素的相关性分析（r（P值））",
+      align = "c", col.names = c("维度", age_groups), format = "html") %>%
+  kable_styling(bootstrap_options = c("striped","hover"), full_width = TRUE, font_size = 12) %>%
+  column_spec(1, width = "6em") %>%
+  column_spec(2:5, width = "7em") %>%   # 加宽以容纳 "0.000 (0.0000)"
+  scroll_box(width = "100%", height = "400px")
+
+```
+
+# 9. 结果解释
+本研究未发现ASD儿童睡眠障碍组与对照组在清晨褪黑素水平上的差异，整体上褪黑素与睡眠参数无显著关联，这与部分既往研究（如韩盼盼等发现负相关）不完全一致，可能由于检测时相不同（清晨vs.晨尿代谢物）及样本异质性。
+
+但年龄分层分析结果显示：6-7岁组呈正相关。这提示年龄可能改变褪黑素与睡眠障碍的关系，或许与发育阶段受体敏感性、褪黑素合成能力变化有关。6-7岁正相关支持“受体脱敏代偿”假说。这一发现强调了未来研究需按年龄分层，并应采用夜间节律指标（如DLMO）和客观监测（如体动记录仪）以全面评估。
+
+# 10. 局限性
+①样本量不均衡（障碍组124 vs. 非障碍组16），降低统计效力，可能掩盖真实差异。
+
+②单次清晨采血仅反映“残余”褪黑素，不能代表夜间分泌峰值或节律。
+
+③CSHQ为主观报告，存在回忆偏倚，尤其夜醒等事件可能漏报。
+
+④年龄分布不均衡（8-15岁仅11例），影响该组分析可靠性。
+
+⑤未控制共病、药物等混杂因素。
+
+# 11. 结论
+ASD儿童睡眠障碍检出率高（88.6%），CSHQ可有效识别多数睡眠问题。
+
+整体上，清晨血清褪黑素水平与睡眠特征无显著相关，但年龄分层发现6-7岁正相关，提示年龄是重要修饰因子。
+
+未来需结合夜间褪黑素节律、客观睡眠监测及更大样本，以阐明褪黑素在ASD睡眠障碍中的动态作用。
+
+# 12.个人总结
+通过本次分析，我系统掌握了使用R进行临床数据清洗、描述性统计、非参数检验和相关性分析的完整流程。尤其在处理偏态分布数据和分层分析时，深入理解了统计方法的适用条件。本研究虽有局限，但年龄分层的发现提示了未来研究的方向。同时，我也体会到数据可视化对于呈现结果的重要性。后续将加强学习混合效应模型和纵向数据分析，以期更全面地解析复杂医学问题。

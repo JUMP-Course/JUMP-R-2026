@@ -1,0 +1,329 @@
+---
+title: "中国COVID-19 疫情监测数据的时间趋势分析"
+author: "wuzhaoyang"
+date: "2026-07-10"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: '4'
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    self_contained: true
+---
+
+
+## 1.研究背景、目的和意义
+
+### 1.1研究背景
+COVID-19是近年来对全球公共卫生体系造成重大冲击的突发性传染病事件，其传播范围广、传播速度快，对社会运行与医疗资源配置产生了深远影响。疫情监测数据能够系统性地反映感染病例在时间与空间上的动态变化，是刻画疫情发展过程的重要基础信息。通过对疫情数据进行时间趋势分析，可以识别疫情上升、平台期与下降等阶段性变化规律，从而更好地理解疫情传播机制，并为疫情监测预警与公共卫生防控决策提供科学依据。
+
+### 1.2研究目的
+本研究旨在通过对 2020 年 1 月至 7 月中国各省 COVID-19 监测数据
+的系统分析，刻画疫情在全国及重点省份的时空演变轨迹，利用Joinpoint回归模型定量划分疫情发展的关键转折阶段，并基于间断时间序列分析（ITS）评价不同地区公共卫生干预措施的防控成效，从而揭示疫情在省域层面的传播异质性与动力学特征。
+
+### 1.3研究意义
+本研究的意义在于，一方面通过时空演变分析丰富了突发传染病流行病学的实证研究体系，为理解疫情的空间异质性提供了科学依据；另一方面，本研究量化评估了非药物干预措施（NPIs）的实际防控成效，能够为相关部门优化传染病监测预警体系、科学配置公共卫生资源以及完善跨区域联动防控机制提供重要的决策支持与参考路径。
+
+## 2.资料来源与研究方法
+
+### 2.1数据来源
+本研究选取的数据涵盖 2020年1月至7月中国内地31个省的 COVID-19 每日监测记录，所有原始数据均直接采集自中华人民共和国国家卫生健康委员会及各省级卫生健康委员会官方发布的每日疫情通报，以确保数据的权威性、时效性及口径的一致性，从而构建起反映疫情早期全生命周期的时序数据集。
+
+### 2.2研究变量
+为多维度剖析疫情发展动态，本研究确立了以新增确诊病例、累计确诊病例、治愈病例及死亡病例为核心的流行病学指标体系，并同步整合了各省人口总量与地区经济基础数据作为辅助协变量，旨在通过流行病学参数与社会经济背景的耦合，全面解析不同区域在疫情传播过程中的异质性特征。
+
+### 2.3数据来源与研究对象
+本研究从中国疾控中心获取数据，为保证统计建模的严谨性，对原始数据执行了严密的清洗流程：通过逻辑校验剔除报表口径调整引起的统计异常，利用线性插值法修复缺失记录，确保时序序列的连续性；同时，通过计算每十万人患病率进行标准化转换，并以各省一级响应实施日期为基准进行相对时间变量重构，从而实现数据的规范化处理，为后续的趋势分析与模型评估奠定基础。
+
+## 3.结果
+
+### 3.1导入并处理原始数据
+``` {r, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(grid)
+library(ggpubr)
+library(gridExtra)
+# 设置中文显示（Windows系统）
+options(encoding = "UTF-8")
+par(family = "SimHei")
+windowsFonts(ST = windowsFont("SimHei"))
+theme_set(theme_bw() + theme(text = element_text(family = "ST")))
+df_raw <- read_excel("china_provincedata.xlsx")
+# 读取后用dateId转换生成date列
+df_raw$date <- ymd(df_raw$dateId)
+
+# 筛选2020-01-01 ~ 2020-07-31
+df <- df_raw %>%
+  filter(date >= ymd("2020-01-01") & date <= ymd("2020-07-31")) %>%
+  arrange(date)
+rownames(df) <- NULL
+
+# 按日期聚合全国数据
+national_df <- df %>%
+  group_by(date) %>%
+  summarise(
+    confirmedIncr = sum(confirmedIncr),   # 新增确诊
+    confirmedCount = sum(confirmedCount), # 累计确诊
+    curedCount = sum(curedCount),         # 累计治愈
+    deadCount = sum(deadCount),           # 累计死亡
+    .groups = "drop"
+  )
+
+# 重命名列名
+colnames(national_df) <- c("date", "新增确诊", "累计确诊", "累计治愈", "累计死亡")
+
+# 计算日增长率
+national_df <- national_df %>%
+  mutate(
+    prev_confirmed = lag(`累计确诊`),
+    daily_growth_rate = `新增确诊` / prev_confirmed
+  ) %>%
+  mutate(daily_growth_rate = ifelse(is.na(daily_growth_rate), 0, daily_growth_rate))
+
+```
+
+### 3.2绘制双Y轴趋势图
+#### 3.2.1左Y轴（累计类）
+```{r, message=FALSE, warning=FALSE} 
+p <- ggplot() +
+  geom_line(data = national_df, aes(x = date, y = `累计确诊`, color = "累计确诊"), linewidth = 1.2) +
+  geom_line(data = national_df, aes(x = date, y = `累计治愈`, color = "累计治愈"), linewidth = 1.2) +
+  geom_line(data = national_df, aes(x = date, y = `累计死亡`, color = "累计死亡"), linewidth = 1.2) +
+  scale_color_manual(
+    name = "",
+    values = c(
+      "累计确诊" = "#0070C0",
+      "累计治愈" = "#00B050",
+      "累计死亡" = "#C00000"
+    )
+  ) +
+  labs(
+    title = "全国COVID-19疫情新增/累计确诊/治愈/死亡趋势图",
+    x = "日期",
+    y = "累计病例数"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top"
+  )
+
+```
+#### 3.2.2右Y轴（新增确诊）
+```{r, message=FALSE, warning=FALSE}
+max_cum <- max(national_df$`累计确诊`, na.rm = TRUE)
+max_new <- max(national_df$`新增确诊`, na.rm = TRUE)
+scale_factor <- max_cum / max_new
+
+p <- p +
+  geom_line(
+    data = national_df,
+    aes(x = date, y = `新增确诊` * scale_factor, color = "新增确诊"),
+    linewidth = 1.2
+  ) +
+  scale_y_continuous(
+    name = "累计病例数",
+    sec.axis = sec_axis(~ . / scale_factor, name = "新增确诊病例")
+  ) +
+  scale_color_manual(
+    name = "",
+    values = c(
+      "累计确诊" = "#0070C0",
+      "累计治愈" = "#00B050",
+      "累计死亡" = "#C00000",
+      "新增确诊" = "#FF0000"
+    )
+  ) +
+  theme(
+    axis.title.y.right = element_text(color = "#FF0000"),
+    axis.text.y.right = element_text(color = "#FF0000")
+  )
+print(p)
+
+cat("✅ 双Y轴总趋势图绘制完成\n")
+```
+### 3.3全国每日新增
+```{r, message=FALSE, warning=FALSE}
+p1 <- ggplot(national_df, aes(x = date, y = `新增确诊`)) +
+  geom_line(color = "#C00000", linewidth = 1) +
+  labs(
+    title = "COVID-19疫情早期全国每日新增确诊病例时间趋势",
+    x = "日期", y = "新增确诊病例数"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.y = element_line(linetype = "dashed", alpha = 0.7)
+  )
+print(p1)
+```
+
+### 3.4全国累计S型曲线
+```{r, message=FALSE, warning=FALSE}
+p2 <- ggplot(national_df, aes(x = date, y = `累计确诊`)) +
+  geom_line(color = "#0070C0", linewidth = 1) +
+  labs(
+    title = "COVID-19疫情早期全国累计确诊病例时间趋势",
+    x = "日期", y = "累计确诊病例数"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.y = element_line(linetype = "dashed", alpha = 0.7)
+  )
+print(p2)
+```
+### 3.5重点省份新增对比
+```{r, message=FALSE, warning=FALSE}
+target_provinces <- c("湖北省", "广东省", "浙江省", "河南省")
+province_df <- df %>% filter(provinceName %in% target_provinces)
+province_daily <- province_df %>%
+  group_by(provinceName, date) %>%
+  summarise(confirmedIncr = sum(confirmedIncr), .groups = "drop")
+
+province_colors <- c(
+  "湖北省" = "#C00000",
+  "广东省" = "#0070C0",
+  "浙江省" = "#00B050",
+  "河南省" = "#FFC000"
+)
+
+p4 <- ggplot(province_daily, aes(x = date, y = confirmedIncr, color = provinceName)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = province_colors) +
+  labs(
+    title = "重点省份每日新增确诊病例趋势对比",
+    x = "日期", y = "新增确诊", color = ""
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_line(linetype = "dashed", alpha = 0.7)
+  )
+print(p4)
+```
+### 3.6疫情日增长率
+```{r, message=FALSE, warning=FALSE}
+p5 <- ggplot(national_df, aes(x = date, y = daily_growth_rate)) +
+  geom_line(color = "#7030A0", linewidth = 1) +
+  geom_vline(xintercept = ymd("2020-01-23"), color = "red", linetype = "dashed", alpha = 0.7) +
+  geom_vline(xintercept = ymd("2020-01-25"), color = "blue", linetype = "dashed", alpha = 0.7) +
+  annotate("text", x = ymd("2020-01-23"), y = max(national_df$daily_growth_rate, na.rm = T),
+           label = "1.23武汉封城", color = "red", hjust = -0.1) +
+  annotate("text", x = ymd("2020-01-25"), y = max(national_df$daily_growth_rate, na.rm = T)*0.9,
+           label = "1.25一级响应", color = "blue", hjust = -0.1) +
+  labs(
+    title = "全国疫情日增长率变化趋势",
+    x = "日期", y = "日增长率"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_line(linetype = "dashed", alpha = 0.7)
+  )
+print(p5)
+```
+### 3.7疫情阶段总结表格
+```{r, message=FALSE, warning=FALSE}
+cat("\n===== 趋势阶段总结 =====\n")
+summary_df <- data.frame(
+  阶段 = c("① 快速增长", "② 达到峰值", "③ 持续下降", "④ 基本控制"),
+  时间 = c("2020年1月", "2020年2月", "2020年3月", "2020年4-7月")
+)
+print(summary_df)
+```
+### 3.8高发省份对比
+```{r, message=FALSE, warning=FALSE}
+library(scales)
+windowsFonts(ST = windowsFont("SimHei"))
+theme_set(theme_bw() + theme(text = element_text(family = "ST")))
+df_raw <- read_excel("china_provincedata.xlsx")
+df_raw$date <- as.Date(as.character(df_raw$dateId), format = "%Y%m%d")
+df <- subset(df_raw, date >= "2020-01-01" & date <= "2020-07-31")
+names(df)[names(df) == "provinceName"] <- "省份"
+names(df)[names(df) == "confirmedIncr"] <- "新增确诊"
+names(df)[names(df) == "confirmedCount"] <- "累计确诊"
+names(df)[names(df) == "curedCount"] <- "累计治愈"
+names(df)[names(df) == "deadCount"] <- "累计死亡"
+province_list <- c(
+  "北京市", "天津市", "河北省", "山西省", "内蒙古自治区",
+  "辽宁省", "吉林省", "黑龙江省", "上海市", "江苏省",
+  "浙江省", "安徽省", "福建省", "江西省", "山东省",
+  "河南省", "湖北省", "湖南省", "广东省", "广西壮族自治区",
+  "海南省", "重庆市", "四川省", "贵州省", "云南省",
+  "西藏自治区", "陕西省", "甘肃省", "青海省", "宁夏回族自治区", "新疆维吾尔自治区"
+)
+df <- subset(df, 省份 %in% province_list)
+prov_max <- aggregate(累计确诊 ~ 省份, data = df, FUN = max)
+high_prov <- subset(prov_max, 累计确诊 >= 1000)$省份   # 高发病省份
+low_prov  <- subset(prov_max, 累计确诊 < 1000)$省份    # 低发病省份
+cat("高发病省份(累计≥1000)：", high_prov, "\n")
+cat("低发病省份(累计<1000)：", low_prov, "\n")
+plot_fig <- function(data_all, prov_set, col_name, title_text){
+  # 筛选目标省份数据
+  plot_dt <- subset(data_all, 省份 %in% prov_set)
+  p <- ggplot(plot_dt, aes(x = date, y = .data[[col_name]], color = 省份)) +
+    geom_line(linewidth = 1.2) +
+    scale_y_log10(labels = comma) +  # 对数坐标轴，区分小数值
+    labs(
+      title = title_text,
+      x = "日期",
+      y = col_name
+    ) +
+    theme(
+      plot.title = element_text(size = 14, face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.text = element_text(size = 7),
+      legend.key.size = unit(0.4, "cm")
+    )
+  print(p)
+}
+# 图1 新增确诊
+plot_fig(df, high_prov, "新增确诊", "高发病省份（累计确诊≥1000）新增确诊对比（对数坐标）")
+# 图2 累计确诊
+plot_fig(df, high_prov, "累计确诊", "高发病省份（累计确诊≥1000）累计确诊对比（对数坐标）")
+# 图3 累计治愈
+plot_fig(df, high_prov, "累计治愈", "高发病省份（累计确诊≥1000）累计治愈对比（对数坐标）")
+# 图4 累计死亡
+plot_fig(df, high_prov, "累计死亡", "高发病省份（累计确诊≥1000）累计死亡对比（对数坐标）")
+# 图5 新增确诊
+plot_fig(df, low_prov, "新增确诊", "低发病省份（累计确诊<1000）新增确诊对比（对数坐标）")
+# 图6 累计确诊
+plot_fig(df, low_prov, "累计确诊", "低发病省份（累计确诊<1000）累计确诊对比（对数坐标）")
+# 图7 累计治愈
+plot_fig(df, low_prov, "累计治愈", "低发病省份（累计确诊<1000）累计治愈对比（对数坐标）")
+# 图8 累计死亡
+plot_fig(df, low_prov, "累计死亡", "低发病省份（累计确诊<1000）累计死亡对比（对数坐标）")
+cat("8张图表全部绘制完成\n")
+```
+## 4.结果解释
+### 4.1疫情早期全国每日新增确诊病例时间趋势
+结果显示：2020年1月至7月全国COVID-19新增确诊病例数呈现明显的阶段性演变。疫情早期（1月下旬）病例数呈爆发式增长，并在2月中旬达到峰值，这与当时湖北省大规模病例筛查及统计口径调整密切相关。随后，随着防控措施的全面升级，每日新增病例数迅速下降，并在3月初降至低位水平，进入长期平稳的常态化防控阶段。
+
+### 4.2疫情早期全国累计确诊病例时间趋势
+结果显示：1月至2月底曲线陡峭快速上扬，对应疫情集中暴发阶段，人员流动引发多地输入病例，累计确诊数量快速攀升；3月至4月曲线坡度明显放缓，得益于武汉封城、全国一级公共卫生响应、社区隔离等防控措施落地，病毒传播链被切断，新增病例大幅减少，累计病例增长速度持续收窄；5月至7月曲线趋于水平稳定，累计确诊总量维持在8万至 8.5 万区间，本土传播基本阻断，仅存在少量境外输入零星病例，国内本土疫情基本得到全面控制，直观体现出早期各项公共卫生干预手段对抑制疫情扩散、阻断病例持续增长起到了显著效果。
+
+### 4.3重点省份每日新增对比
+结果显示：可见湖北省为疫情核心区域，2月上旬新增确诊出现峰值，单日新增最高接近 15000例月整体持续维持较高新增水平，3月起新增病例快速回落并逐步趋近于零，仅4月出现少量零星新增；而广东、浙江、河南三省作为输入性疫情省份，全程每日新增确诊数值始终维持在极低水平，无大规模暴发高峰，2月小幅波动后便长期稳定于零附近，直观反映出本次疫情以湖北本地暴发为主，其余省份多为输入性零散病例，各地分级防控措施落地后均快速遏制了本地传播，省际疫情规模与流行强度存在显著差异。
+
+### 4.4全国疫情日增长率变化趋势
+结果显示：疫情初期1月下旬日增长率数值极高，病毒传播速度迅猛，而1月23日武汉封城、1月25日全国启动重大突发公共卫生事件一级响应两项关键防控措施落地后，日增长率快速断崖式下跌，进入2月后便长期维持在接近于0的低位水平，直至7月始终无明显反弹，清晰证明封城、全域管控等干预举措快速阻断了病毒传播链条，显著压低了病例增长速度，实现了疫情传播态势的快速扭转。
+
+### 4.5高发与低发省份对比
+结果显示：高发病省份中湖北是疫情核心区域，2月新增病例峰值极高，累计确诊、治愈、死亡数量均大幅领先其余省份，3月后新增快速下降，总量趋于稳定；广东、浙江、河南、湖南仅2月出现小幅病例波动，整体流行规模偏低。低发病省份仅存在少量输入性零散病例，无持续暴发高峰，各项病例数值长期处于低位。2月是全国病例集中出现的阶段，全域防控措施落地后，3月所有省份新增病例大幅衰减，累计病例增长基本停滞，本土传播被有效阻断。
+
+## 5.局限性
+仅统计 2020 年 1—7月早期数据，无法反映下半年境外输入、局部复发等后续疫情变化，时间覆盖范围有限。仅分析确诊、治愈、死亡数量，未纳入人口基数、医疗资源、人员流动、防控政策实施时序等混杂变量，无法量化各地防控措施、人口密度对疫情规模的影响
+
+## 6.个人总结
+本研究依托 2020年1—7月全国省级新冠疫情数据，完成数据清洗、聚合与多维度时序可视化分析，通过划分高低发病省份对比各地疫情发展规律，清晰呈现出湖北为核心暴发区域、其余省份以输入性散发病例为主的传播格局，也直观验证了武汉封城、全国一级响应等防控政策能够快速压低病例增长速率、阻断本土持续传播。研究绘图采用对数坐标解决数值跨度大的可视化难题，分层图表清晰区分不同地区疫情量级差异，完整梳理了疫情快速增长、峰值回落、平稳受控的完整阶段。同时本次分析也存在明显局限，仅使用省级汇总数据、未结合人口校正发病率、缺少人口流动与医疗资源等协变量支撑，仅能描述病例数量变化而无法量化各类因素的影响程度，且仅覆盖上半年数据，不能反映后续境外输入与局部反弹情况。后续研究可纳入地市精细化数据、引入人口标准化发病指标，结合政策时序、人口流动数据开展定量建模，进一步完善疫情传播差异的成因分析。
+

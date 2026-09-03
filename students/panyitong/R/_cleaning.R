@@ -76,12 +76,14 @@ clean_data <- clean_data %>%
            SMQ020 == 1 & SMQ040 %in% c(1, 2) ~ "Current",
            TRUE ~ NA_character_),
          gender = case_when(RIAGENDR == 1 ~ "Male",RIAGENDR == 2 ~ "Female",TRUE ~ NA_character_),
-         age_group = case_when(RIDAGEYR < 40 ~ "20-39",RIDAGEYR < 60 ~ "40-59",TRUE ~ "60-80"),
+         age_group = case_when(RIDAGEYR <= 60 ~ "≤60",RIDAGEYR > 60 ~ ">60",TRUE ~ NA_character_),
          race = case_when(RIDRETH3 == 1 ~ "Mexican American",
                           RIDRETH3 == 2 ~ "Other Hispanic",
                           RIDRETH3 == 3 ~ "Non-Hispanic White",
                           RIDRETH3 == 4 ~ "Non-Hispanic Black",
-                          RIDRETH3 == 6 ~ "Non-Hispanic Asian",TRUE ~ "Other"),
+                          RIDRETH3 == 6 ~ "Non-Hispanic Asian",
+                          RIDRETH3 == 7 ~ "Other",
+                          TRUE ~ NA_character_),
          bmi_group = case_when(
            BMXBMI < 18.5 ~ "Underweight",
            BMXBMI < 25 ~ "Normal",
@@ -89,11 +91,9 @@ clean_data <- clean_data %>%
            BMXBMI >= 30 ~ "Obese",
            TRUE ~ NA_character_),
          education = case_when(
-           DMDEDUC2 == 1 ~  "Lower than grade 9",
-           DMDEDUC2 == 2~ "9–11 grade",
-           DMDEDUC2 == 3~ "Highschool graduate",
-           DMDEDUC2 == 4~ "Some college or AA degree",
-           DMDEDUC2 == 5~ "College graduate or higher",
+           DMDEDUC2 %in% c(4, 5) ~ "College or above",
+           DMDEDUC2 == 3 ~ "High school",
+           DMDEDUC2 %in% c(1, 2) ~ "Below high school",
            TRUE ~ NA_character_),
          pir_group = case_when(
            INDFMPIR < 2 ~ "Low",
@@ -119,15 +119,5 @@ saveRDS(clean_data, "clean_data.rds")
 
 dim(clean_data)
 table(clean_data$smoking, clean_data$hypertension)
-
-
-
-
-
-
-
-
-
-
 
 

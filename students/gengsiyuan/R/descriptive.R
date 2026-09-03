@@ -1,9 +1,17 @@
 install.packages("gtsummary")
 install.packages("flextable")
+install.packages("ggplot2")
 library(survey)
 library(gtsummary)
 library(dplyr)
 library(flextable)
+library(ggplot2)
+
+#定义分组变量
+data_final <- data_final %>%
+  mutate(hashimoto_grp = factor(hashimoto, 
+                                levels = 0:1, 
+                                labels = c("桥本阴性", "桥本阳性")))
 
 # 加权
 svy_design <- svydesign(
@@ -15,19 +23,16 @@ svy_design <- svydesign(
 )
 
 #表格
-tbl1 <- tbl_svysummary(
+tbl_base <- tbl_svysummary(
   svy_design,
-  by = hashimoto,
+  by = hashimoto_grp,
   include = c(RIDAGEYR, BMXBMI, INDFMPIR, URXUCD_cr,
               sex, race, education, smoke, hypertension),
   statistic = list(
     all_continuous() ~ "{median} ({p25}, {p75})",
     all_categorical() ~ "{n} ({p}%)"
   ),
-  digits = list(
-    all_continuous() ~ 1,
-    all_categorical() ~ c(0, 1)
-  ),
+  digits = list(all_continuous() ~ 1, all_categorical() ~ c(0, 1)),
   label = list(
     RIDAGEYR ~ "年龄 (岁)",
     BMXBMI ~ "身体质量指数 (kg/m²)",
@@ -44,20 +49,12 @@ tbl1 <- tbl_svysummary(
   modify_caption("表1. 研究人群加权基线特征 (NHANES 2007-2012)") %>%
   bold_labels()
 
-tbl1
+tbl_base
 
-# 导出 
-tbl1 %>%
+# 导出表1（不含P值）
+tbl_base %>%
   as_flex_table() %>%
-  flextable::save_as_docx(path = "Table1_加权基线表.docx")
-
-
-set.seed(123)
-
-data_final <- data_final %>%
-  mutate(hashimoto_grp = factor(hashimoto, 
-                                levels = 0:1, 
-                                labels = c("桥本阴性", "桥本阳性")))
+  save_as_docx(path = "Table1_加权基线表.docx")
 
 # 图1
 p1 <- ggplot(data_final, aes(x = URXUCD_cr, fill = hashimoto_grp)) +
@@ -74,6 +71,7 @@ p1 <- ggplot(data_final, aes(x = URXUCD_cr, fill = hashimoto_grp)) +
 ggsave("Figure1_尿镉分布直方图.png", p1, width = 8, height = 5, dpi = 300)
 
 # 图2
+set.seed(123)
 p2 <- ggplot(data_final, aes(x = hashimoto_grp, y = URXUCD_cr, fill = hashimoto_grp)) +
   geom_boxplot(alpha = 0.7, width = 0.6, outlier.shape = NA) +
   geom_jitter(width = 0.2, alpha = 0.15, size = 0.6, color = "gray30") +
