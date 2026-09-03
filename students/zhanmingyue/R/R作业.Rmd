@@ -1,0 +1,417 @@
+---
+title: "腰围与糖尿病风险的关联分析"
+author: "zhanmingyue"
+date: "2026-06-27"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: flatly
+    hightlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.align = "center", out.width = "70%")
+library(tidyverse)
+library(gtsummary)
+library(sjPlot)
+library(car)
+library(pROC)
+library(ResourceSelection)
+library(broom)
+
+#gtsummary主题
+theme_gtsummary_compact()
+
+# 读取清洗后的数据
+dat <- readRDS("D:/shuju/clean_dat_cm.rds")
+```
+
+# 摘要
+
+**目的**：在调节年龄、性别及总胆固醇水平后，探讨腰围与糖尿病风险之间的独立关联。
+**方法**：采用横断面研究设计，数据来源于Kaggle公开数据集，共纳入381名研究对象。以糖化血红蛋白≥6.5%定义糖尿病。采用Wilcoxon秩和检验进行组间比较，构建多因素logistic回归模型分析腰围与糖尿病的关联，校正年龄、性别和总胆固醇。进行模型诊断、分层分析（按性别）和敏感性分析（剔除强影响点）以验证结果稳健性。
+**结果**：多因素logistic回归显示，腰围每增加1cm，糖尿病患病风险升高约4%（OR=1.04，95%CI：1.019-1.063，P＜0.001）。性别分层分析显示男性和女性中腰围效应一致（交互p = 0.614）。敏感性分析剔除强影响点后，腰围OR = 1.054，结论稳定。
+**结论**：腰围是糖尿病的独立危险因素，该关联在不同性别中具有一致性，提示腰围可作为糖尿病风险筛查的简便指标。
+关键词：腰围；糖尿病；logistic回归；横断面研究
+
+# 引言
+     糖尿病是全球范围内主要的慢性非传染性疾病之一，其患病率持续上升，给公共卫生系统带来沉重负担。国际糖尿病联盟（IDF）数据显示，全球糖尿病患病人数已超过5亿，且呈年轻化趋势。肥胖，尤其是中心性肥胖，是2型糖尿病的主要危险因素之一。腰围作为反映内脏脂肪堆积的简便、无创测量指标，与糖尿病的关联备受关注。
+    既往研究已证实腰围与糖尿病的关联。Zhang等（2021）在中国吉林人群中的横断面研究发现，腰围最高四分位组糖尿病风险是最低四分位组的5.13倍。Zhao等（2024）的前瞻性队列研究亦表明腰围联合空腹血糖可有效预测2型糖尿病。然而，不同人群、不同数据源中腰围与糖尿病的独立关联仍需进一步验证。
+    本研究旨在利用Kaggle公开数据集，在校正年龄、性别和总胆固醇后，探讨腰围与糖尿病的独立关联，并通过分层分析和敏感性分析评估结果的稳健性。
+
+# 资料与方法
+## 数据来源
+    本研究数据来源于Kaggle公开数据集（diabetes.csv）。原始数据共404条记录。
+## 数据清洗与变量定义
+    本研究原始数据来源于Kaggle公开数据集（diabetes.csv），共包含404条记录。数据清洗过程如下：
+
+（1）**单位转换**：原始腰围（waist）单位为英寸，分析前统一转换为厘米（乘以2.54）；数据中的身高（height）和体重（weight）分别由英寸转换为厘米、由磅转换为公斤，并据此计算体质指数（BMI）。
+
+（2）**缺失值处理**：剔除腰围、年龄、性别、总胆固醇及糖化血红蛋白（glyhb）等关键变量存在缺失的观测。
+
+（3）**变量类型转换**：将性别和糖尿病状态的数值类型转变为因子型。
+  经上述清洗后，最终纳入有效样本381例。
+
+## 变量定义与处理
+### 结局变量
+    糖尿病，根据糖化血红蛋白（glyhb）水平定义。若glyhb≥ 6.5%定义为“糖尿病”组；否则为“非糖尿病”组。
+### 暴露变量
+    腰围（waist）。原始单位为英寸，分析前统一转换为厘米单位为厘米（乘以2.54）。
+### 协变量
+    年龄（age，连续变量，岁）、性别（gender，分类变量，参照组为女性）、总胆固醇（chol，连续变量，mg/dL）。
+
+## 统计分析方法
+1. **基线特征描述**：连续变量因不服从正态分布（Shapiro-Wilk检验p＜0.05），以中位数（四分位距）描述；分类变量以频数（百分比）描述。
+
+2. **组间比较**：连续变量采用Wilcoxon秩和检验；分类变量采用卡方检验。
+
+3. **关联分析**：采用多因素logistic回归，纳入腰围、年龄、性别和总胆固醇，计算优势比（OR）及其95%置信区间（CI）。
+
+4. **模型诊断**：利用方差膨胀因子（VIF）评估共线性；绘制Pearson残差图评估拟合优度；绘制Cook距离识别强影响点；采用Hosmer-Lemeshow检验评估模型校准度。
+
+5. **亚组与敏感性分析**：按性别分层分析；剔除Cook距离超过阈值（4/n）的强影响点后进行敏感性分析。
+    
+    所有统计分析均使用RStudio软件完成，显著性水平设定为α=0.05（双侧）。
+    
+# 结果
+
+## 研究对象基本特征
+```{r,fig.cap="表1.研究对象基线特征"}
+dat%>%
+  select(waist,age,chol,gender,diabetes)%>%  
+  tbl_summary(
+    by=diabetes,  
+    statistic=list(
+      all_continuous()~"{median}({p25}-{p75})",  
+      all_categorical()~"{n}({p}%)" 
+    ),
+    digits=all_continuous()~1,  
+  label = list(
+      waist ~ "腰围 (cm)",
+      age ~ "年龄 (岁)",
+      chol ~ "总胆固醇 (mmol/L)",
+      gender ~ "性别"
+    )
+  ) %>%
+  add_p()%>%  
+  modify_header(label="**变量**")%>%  
+  modify_spanning_header(all_stat_cols()~"**糖尿病状态**") 
+```
+    
+     本研究共纳入381名研究对象，其中糖尿病患者63人（16.5%），非糖尿病患者318人（83.5%）。与未患糖尿病的参与者相比，糖尿病患者的腰围、年龄和总胆固醇水平均显著升高（p＜0.001），性别分布在两组间无显著差异（p＞0.05）。这一结果提示腰围、年龄和胆固醇可能是糖尿病的潜在危险因素，为进一步的多因素调整分析提供了依据。
+     
+## 可视化探索与极端值核查
+
+```{r}
+# 图1：腰围分布直方图
+
+ggplot(dat,aes(x=waist))+
+  geom_histogram(binwidth = 5,fill="skyblue",color="black",alpha=0.7)+
+  labs(title="图1.腰围分布直方图",x="腰围(cm)",y="频数")+
+  theme_minimal()+
+  theme(plot.title=element_text(hjust=0.5,size=14))
+```
+    图一显示：腰围分布大致对称，集中在65-140cm之间,无极端异常值。该分布形态满足logistic回归对连续变量的基本要求，无需进行数据变换。
+
+```{r}
+# 图2：腰围与糖尿病状态的箱线图
+
+ggplot(dat,aes(x=diabetes,y=waist,fill=diabetes))+
+  geom_boxplot(alpha=0.7,outlier.color="red")+
+  scale_fill_manual(values=c("lightgreen","lightpink"))+
+  labs(title="图2.不同糖尿病状态的腰围比较",x="糖尿病状态",y="腰围(cm)")+
+  theme_minimal()+
+  theme(plot.title=element_text(hjust=0.5),legend.position = "none")
+```
+    图二显示：糖尿病组的腰围中位数（约98 cm）明显高于非糖尿病组（约82 cm），提示腰围与糖尿病存在关联。
+
+```{r}
+# 图三：年龄分布直方图
+
+ggplot(dat,aes(x=age))+
+  geom_histogram(binwidth=5,fill="lightblue",color="black",alpha=0.7)+
+  labs(title="图3.年龄分布直方图",x="年龄(岁)",y="频数")+
+  theme_minimal()+
+  theme(plot.title=element_text(hjust=0.5,size=14))
+```
+
+    图三显示：年龄分布大致匀称，集中在20-70岁之间，无极端异常年龄。
+
+```{r}
+# 图四：按性别分组的腰围箱线图
+
+ggplot(dat,aes(x=gender,y=waist,fill=gender))+
+  geom_boxplot(alpha=0.7,outlier.color="red")+
+  scale_fill_manual(values=c("lightpink","lightblue"))+
+  labs(title="图4.不同性别的腰围分布",x="性别",y="腰围(cm)")+
+  theme_minimal()+
+  theme(plot.title=element_text(hjust=0.5),legend.position = "none")
+```
+
+    图四显示：不同性别的腰围分布对比显示,男性腰围与女性腰围差别不大,箱体存在较大面积重叠，提示性别对腰围的单独贡献有限。考虑到临床意义和既往文献，多因素分析中仍校正性别。
+
+```{r,results='hide'}
+#查看极端值
+
+dat_diab<-subset(dat,diabetes=="糖尿病")
+boxplot(dat_diab$waist,plot=FALSE)$out
+dat_diab[dat_diab$waist%in%boxplot(dat_diab$waist,plot=FALSE)$out,]
+
+dat_male<-subset(dat,gender=="male")
+boxplot(dat_male$waist,plot=FALSE)$out
+dat_male[dat_male$waist%in%boxplot(dat_male$waist,plot=FALSE)$out,]
+```
+
+    经核查，这些极端值对应的BMI值均在合理范围内（如腰围＞129cm的个体BMI均大于35），未发现明显的录入错误。因此决定保留所有样本，不进行剔除。
+
+## 组间比较（假设检验）
+```{r,results='hide'}
+shapiro.test(dat$waist)   
+shapiro.test(dat$age)    
+shapiro.test(dat$chol)
+```
+
+    经Shapiro-Wilk检验，腰围、年龄、总胆固醇均不服从正态分布（p < 0.05），因此采用非参数检验。
+
+```{r}
+# 连续变量组间比较
+wilcox_waist <- wilcox.test(waist ~ diabetes, data = dat)
+wilcox_age <- wilcox.test(age ~ diabetes, data = dat)
+wilcox_chol <- wilcox.test(chol ~ diabetes, data = dat)
+
+# 分类变量组间比较 
+gender_table <- table(dat$gender, dat$diabetes)
+chisq_gender <- chisq.test(gender_table)
+
+# 整理成汇总表 
+group_compare <- data.frame(
+  变量 = c("腰围", "年龄", "总胆固醇", "性别"),
+  检验方法 = c("Wilcoxon秩和检验", "Wilcoxon秩和检验", "Wilcoxon秩和检验", "卡方检验"),
+  统计量 = c(
+    round(wilcox_waist$statistic, 2),
+    round(wilcox_age$statistic, 2),
+    round(wilcox_chol$statistic, 2),
+    round(chisq_gender$statistic, 3)
+  ),
+  p值 = c(
+    format(wilcox_waist$p.value, scientific = FALSE, digits = 4),
+    format(wilcox_age$p.value, scientific = FALSE, digits = 4),
+    format(wilcox_chol$p.value, scientific = FALSE, digits = 4),
+    round(chisq_gender$p.value, 4)
+  )
+)
+
+# 输出表格
+knitr::kable(group_compare, caption = "表2：各变量组间比较结果汇总")
+```
+
+    假设检验结果：
+    （1）Wilcoxon秩和检验显示：腰围、年龄、总胆固醇在糖尿病组与非糖尿病组间均有极显著差异（p＜0.001），进一步验证了table1中观察到的组间差异。
+    （2）卡方检验显示：性别在两组间分布无显著差异（p > 0.05）。
+    由于连续变量均不服从正态分布，采用非参数检验是合理的。
+
+## 多因素logistic回归分析
+```{r}
+# 单因素逻辑回归（仅腰围）
+model1 <- glm(diabetes ~ waist, data = dat, family = binomial)
+OR1 <- exp(coef(model1))
+CI1 <- exp(confint(model1))
+
+# 多因素逻辑回归（校正年龄、性别、总胆固醇）
+model2 <- glm(diabetes ~ waist + age + gender + chol, 
+              data = dat, family = binomial)
+OR2 <- exp(coef(model2))
+CI2 <- exp(confint(model2))
+
+# 整理结果
+tidy_model2 <- tidy(model2, conf.int = TRUE, exponentiate = TRUE)
+
+reg_table <- tidy_model2 %>%
+  select(term, estimate, conf.low, conf.high, p.value) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+knitr::kable(reg_table, 
+             col.names = c("变量", "OR", "95% CI下限", "95% CI上限", "p值"),
+             caption = "表3：多因素logistic回归分析结果")
+```
+
+    在校正年龄、性别和总胆固醇后，腰围与糖尿病显著相关（OR=1.040，95%CI：1.019-1.063，p＜0.001），即腰围每增加1厘米，糖尿病风险增加约4.0%。年龄（OR=1.049，p＜0.001）和总胆固醇（OR=1.010，p=0.003）也与糖尿病显著相关，而性别差异无统计学意义（p=0.457）。单因素分析中腰围的OR为1.041（95%CI：1.023-1.061），多因素校正后方向与显著性均未改变，表明腰围对糖尿病的影响独立于年龄、性别和胆固醇水平，支持其作为独立危险因素的假设。
+    
+```{r}
+# 森林图
+plot_model(model2, 
+           type = "est", 
+           title = "图5.多因素logistic回归森林图",
+           show.values = TRUE, 
+           value.offset = 0.3)+
+  theme_bw()
+```
+
+    森林图直观展示了各变量的OR及95%置信区间。腰围和年龄的置信区间完全位于1的右侧，表明两者是糖尿病的独立危险因素。性别的置信区间跨越1，表明其效应不显著。
+
+## 模型诊断
+### 共线性诊断
+```{r}
+vif_values <- vif(model2)
+print(vif_values)
+```
+
+    所有自变量的VIF值均小于1.03，远低于阈值5，提示无多重共线性。
+
+### 残差分析
+```{r}
+resid_pearson <- residuals(model2, type = "pearson")
+fitted_vals <- fitted(model2)
+resid_plot <- ggplot(data.frame(fitted = fitted_vals, resid = resid_pearson), 
+                     aes(x = fitted, y = resid)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "图6.Pearson残差 vs 拟合值",
+       x = "拟合概率", y = "Pearson残差") +
+  theme_minimal()
+print(resid_plot)
+```
+
+    残差图显示，残差点沿零线两侧形成两条线性轨迹，而非完全随机分布。这一“分离效应”表明本研究的核心变量（腰围）能够有效区分糖尿病与非糖尿病两组人群。该模式属于数据自身强分组特征的自然映射，并非模型失拟的证据，结合后续校准度检验结果，模型拟合可接受。
+
+### cook距离（影响点）
+```{r}
+cooks_d <- cooks.distance(model2)
+n <- nrow(dat)
+threshold <- 4 / n
+influential <- which(cooks_d > threshold)
+ggplot(data.frame(index = 1:n, cook = cooks_d), 
+       aes(x = index, y = cook)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_hline(yintercept = threshold, linetype = "dashed", color = "red") +
+  labs(title = "图7.Cook距离（影响点诊断）",
+       x = "观测序号", y = "Cook距离") +
+  theme_minimal()
+```
+
+    采用4/n（n=381）作为阈值识别强影响点，共识别出32个Cook距离超过该阈值的观测。为进一步评估这些观测对结论的影响，我们在敏感性分析中剔除了这32个观测并重新拟合模型（见下文表5）。
+
+### 校准度检验
+```{r,results='hide'}
+y_numeric <- as.numeric(dat$diabetes) - 1
+hl_test <- hoslem.test(y_numeric, fitted(model2), g = 10)
+print(hl_test)
+```
+
+    Hosmer-Lemeshow检验结果显示，χ²=8.809,df=8, p=0.3587,提示模型预测概率与实际观测之间无显著差异，模型校准度良好。
+
+## 分层分析与敏感性分析
+```{r,results='hide'}
+###分层分析（按性别）
+
+dat_male <- dat %>% filter(gender == "male")
+dat_female <- dat %>% filter(gender == "female")
+
+model_male <- glm(diabetes ~ waist + age + chol, data = dat_male, family = binomial)
+model_female <- glm(diabetes ~ waist + age + chol, data = dat_female, family = binomial)
+
+# 交互作用检验 
+model_interaction <- glm(diabetes ~ waist * gender + age + chol, data = dat, family = binomial)
+
+###敏感性分析
+dat_clean <- dat[-influential, ]
+
+model_sens <- glm(diabetes ~ waist + age + gender + chol, data = dat_clean, family = binomial)
+```
+```{r,echo=FALSE,results='markup'}
+# 分层分析结果提取 
+OR_male <- exp(coef(model_male))["waist"]
+CI_male <- exp(confint(model_male))["waist", ]
+OR_female <- exp(coef(model_female))["waist"]
+CI_female <- exp(confint(model_female))["waist", ]
+
+# 交互作用p值提取 
+interaction_p <- summary(model_interaction)$coefficients["waist:gendermale", "Pr(>|z|)"]
+
+# 敏感性分析结果提取（剔除强影响点）
+OR_sens <- exp(coef(model_sens))["waist"]
+CI_sens <- exp(confint(model_sens))["waist", ]
+
+# 主模型结果（model2）
+OR_main <- exp(coef(model2))["waist"]
+CI_main <- exp(confint(model2))["waist", ]
+
+# 汇总成数据框 
+robust_table <- data.frame(
+  模型 = c("主模型（全人群）", "男性亚组", "女性亚组", "交互作用检验", "敏感性分析（剔除强影响点）"),
+  腰围_OR = c(round(OR_main, 3), round(OR_male, 3), round(OR_female, 3), "-", round(OR_sens, 3)),
+  CI_95 = c(
+    paste0("(", round(CI_main[1], 3), "-", round(CI_main[2], 3), ")"),
+    paste0("(", round(CI_male[1], 3), "-", round(CI_male[2], 3), ")"),
+    paste0("(", round(CI_female[1], 3), "-", round(CI_female[2], 3), ")"),
+    "-",
+    paste0("(", round(CI_sens[1], 3), "-", round(CI_sens[2], 3), ")")
+  ),
+  p值 = c(
+    format(summary(model2)$coefficients["waist", "Pr(>|z|)"], scientific = FALSE, digits = 4),
+    format(summary(model_male)$coefficients["waist", "Pr(>|z|)"], scientific = FALSE, digits = 4),
+    format(summary(model_female)$coefficients["waist", "Pr(>|z|)"], scientific = FALSE, digits = 4),
+    round(interaction_p, 4),
+    format(summary(model_sens)$coefficients["waist", "Pr(>|z|)"], scientific = FALSE, digits = 4)
+  )
+)
+
+knitr::kable(robust_table, caption = "表5：腰围与糖尿病关联的稳健性分析（亚组与敏感性分析）")
+```
+
+    分层分析显示，男性亚组中腰围的OR为1.047（95%CI：1.013-1.083），女性亚组中为1.036（95%CI：1.009-1.065），两组OR值接近且置信区间高度重叠。交互作用检验p=0.614，表明性别对腰围效应无显著修饰作用，即腰围与糖尿病的关联在男性和女性中具有一致性。敏感性分析剔除32个强影响点后，腰围or为1.054（95%CI：1.022-1.087），与原模型结果（OR=1.040）基本一致，提示核心结论不依赖于少数极端观测，稳健可靠。
+
+## 模型补充评估
+### ROC曲线
+```{r}
+roc_obj <- roc(dat$diabetes, fitted(model2))
+auc_value <- round(auc(roc_obj), 3)
+
+ggroc(roc_obj, color = "steelblue", size = 1) +
+  geom_abline(intercept = 1, slope = 1, linetype = "dashed", color = "gray50") +
+  labs(title = paste("图8.ROC曲线 (AUC =", auc_value, ")"),
+       x = "1 - 特异度", y = "灵敏度") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+    
+    采用ROC曲线评估多因素logistic回归模型的区分能力。结果显示，模型预测糖尿病的AUC为0.801。根据常用判断标准（0.7-0.8为可接受，0.8-0.9为优秀），该模型的区分能力处于“可接受至优秀”的边界水平，表明模型能够较好地区分糖尿病与非糖尿病个体。
+    
+### 预测概率图
+```{r}
+plot_model(model2, type = "pred", terms = "waist",
+           title = "图9.腰围对糖尿病预测概率的影响",
+           axis.title = c("腰围 (cm)", "预测概率"))+
+  theme_bw()
+```
+
+    图9展示了在校正年龄、性别和总胆固醇后，腰围与糖尿病预测概率的关系。结果显示，预测概率随腰围增加呈单调上升趋势，当腰围超过约100 cm后，预测概率的上升斜率明显增大，提示该切点附近的风险变化更为显著。这一趋势与临床常用的中心性肥胖切点（男性≥90 cm，女性≥80 cm）在方向上一致，进一步支持腰围作为风险筛查指标的实用性。
+
+### 非线性检验
+```{r,results='hide'}
+dat$waist_sq <- dat$waist^2
+model_nonlinear <- glm(diabetes ~ waist + waist_sq + age + gender + chol, 
+                       data = dat, family = binomial)
+summary(model_nonlinear)
+```
+
+    非线性检验结果显示，腰围平方项的P=0.3842（＞0.05），提示腰围与糖尿病的对数比值比之间不存在显著的非线性关系。因此，本研究采用线性模型是合理的。
+
+# 讨论
+    本研究基于Kaggle公开数据集，分析了腰围与糖尿病的关联。主要发现如下：在校正年龄、性别和总胆固醇后，腰围是糖尿病的独立危险因素，每增加1厘米，糖尿病风险升高约4%。这一发现与既往研究结果一致。Zhang等（2021）在中国吉林人群中的横断面研究发现，腰围最高四分位组糖尿病风险是最低四分位组的5.13倍。Zhao等（2024）的前瞻性队列研究亦证实腰围是2型糖尿病的独立预测因子。
+    分层分析显示，腰围在男性和女性中的效应相近（男性OR=1.047，女性OR=1.036），交互作用检验p=0.614，进一步证实了性别一致效应。此外，年龄在本研究中也是显著的独立危险因素（OR=1.049，p＜0.001）与已知的流行病学证据一致。总胆固醇虽在统计学上显著（p=0.003），但效应微弱（OR=1.010）可能与本研究人群的胆固醇水平整体偏高或变异水平有关。
+    敏感性分析剔除强影响点后，腰围OR为1.054，与主模型结果基本一致，表明结论稳健可靠。
+    
+    **研究局限性**：首先，本研究为横断面设计，无法推断因果关系。其次，数据来源于Kaggle公开数据库，可能存在选择偏倚。第三，未纳入饮食、运动、吸烟、家族史等潜在混杂因素。第四，样本量相对有限（尤其男性亚组仅158人），可能影响部分分析的统计效能。第五，总胆固醇虽在统计上显著，但效应微弱（OR=1.01），临床意义有限。
+    
+# 结论
+    本研究在校正年龄、性别和总胆固醇后，证实腰围是糖尿病的独立危险因素，腰围每增加1厘米，糖尿病风险升高约4%。腰围作为一项简便、无创的测量指标，可在大规模人群中用于糖尿病风险的初步筛查。未来需通过前瞻性队列研究进一步验证其因果关联及最佳干预切点。
+
+
+
+
+
+
